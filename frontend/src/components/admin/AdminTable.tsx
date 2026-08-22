@@ -1,0 +1,8 @@
+import type { Admin } from '../../types';
+import { formatDate } from '../../data/mockData';
+
+type Props = { admins: Admin[]; startIndex?: number; onEdit: (admin: Admin) => void; onDelete: (admin: Admin) => void };
+
+export default function AdminTable({ admins, startIndex = 0, onEdit, onDelete }: Props) {
+  return <div className="data-table-shell"><table className="data-table admin-data-table"><thead><tr><th>Nama Admin</th><th>Email Login</th><th>Kredensial</th><th>No. Telepon</th><th>Role</th><th>Dibuat</th><th>Aksi</th></tr></thead><tbody>{admins.map((admin, rowIndex) => <tr key={admin.id}><td><div className="admin-name-cell"><span className="table-row-number">{startIndex + rowIndex + 1}</span><span className={`admin-avatar role-${admin.role}`}>{admin.name.charAt(0)}</span><div><strong>{admin.name}</strong><small>ID {admin.id}</small></div></div></td><td><strong>{admin.email}</strong><small>Digunakan untuk masuk</small></td><td><span className={`credential-status ${admin.hasPassword === false ? 'credential-empty' : 'credential-ready'}`}><i />{admin.hasPassword === false ? 'Belum diatur' : 'Password aktif'}</span>{admin.credentialsUpdatedAt && <small>Diperbarui {formatDate(admin.credentialsUpdatedAt)}</small>}</td><td>{admin.phone ?? '-'}</td><td><span className={`admin-role role-${admin.role}`}>{admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}</span></td><td>{formatDate(admin.createdAt)}</td><td><div className="action-cell">{admin.role !== 'super_admin' ? <><button className="btn-secondary btn-sm" onClick={() => onEdit(admin)}>Edit</button><button className="btn-danger btn-sm" onClick={() => onDelete(admin)}>Hapus</button></> : <small>Akun utama</small>}</div></td></tr>)}</tbody></table></div>;
+}
