@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ClassSession;
 use App\Models\Program;
 use App\Models\Student;
 use App\Models\Teacher;
@@ -77,6 +78,31 @@ class EdgloApiTest extends TestCase
             ->assertJsonPath('data.registrationFee', 100000)
             ->assertJsonPath('data.bookFee', 100000)
             ->assertJsonPath('data.total', 800000);
+    }
+
+    public function test_class_sessions_are_paginated_ten_rows_by_default(): void
+    {
+        $admin = User::factory()->create(['code' => 'A001', 'role' => 'super_admin']);
+        $this->seedAcademicReferences();
+
+        foreach (range(1, 12) as $index) {
+            ClassSession::create([
+                'id' => 'CL'.str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+                'day' => 'Senin',
+                'time' => sprintf('%02d:00', $index),
+                'teacher_id' => 'T001',
+                'program_id' => 'calistung-regular',
+                'room' => 'Ruang '.(($index % 3) + 1),
+                'capacity' => 8,
+                'is_active' => true,
+            ]);
+        }
+
+        $this->actingAs($admin, 'sanctum')->getJson('/api/v1/class-sessions')
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('meta.total', 12)
+            ->assertJsonPath('meta.last_page', 2);
     }
 
     private function seedAcademicReferences(): void

@@ -6,13 +6,15 @@ export type AdminProfileInput = {
   email: string;
   phone: string;
   role: UserRole;
+  password?: string;
+  passwordConfirmation?: string;
 };
 
 type Props = {
   admin: Admin | null;
   admins: Admin[];
   onClose: () => void;
-  onSave: (profile: AdminProfileInput, passwordChanged: boolean) => void;
+  onSave: (profile: AdminProfileInput) => void | Promise<void>;
 };
 
 export default function AdminCredentialModal({ admin, admins, onClose, onSave }: Props) {
@@ -69,7 +71,11 @@ export default function AdminCredentialModal({ admin, admins, onClose, onSave }:
       return;
     }
 
-    onSave(cleanProfile, Boolean(password));
+    onSave({
+      ...cleanProfile,
+      password: password || undefined,
+      passwordConfirmation: confirmation || undefined,
+    });
   };
 
   return (
@@ -103,7 +109,7 @@ export default function AdminCredentialModal({ admin, admins, onClose, onSave }:
 
         {error && <div className="admin-form-error">{error}</div>}
 
-        <div className="admin-credential-actions"><span>Password akan diproses sebagai hash saat backend Laravel dihubungkan.</span><div><button type="button" className="btn-secondary" onClick={onClose}>Batal</button><button type="submit" className="btn-primary">{admin ? 'Simpan Perubahan' : 'Buat Akun Admin'}</button></div></div>
+        <div className="admin-credential-actions"><span>Password diproses secara aman oleh backend Laravel.</span><div><button type="button" className="btn-secondary" onClick={onClose}>Batal</button><button type="submit" className="btn-primary">{admin ? 'Simpan Perubahan' : 'Buat Akun Admin'}</button></div></div>
       </form>
     </div>
   );

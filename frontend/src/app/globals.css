@@ -3012,6 +3012,15 @@ textarea:focus-visible {
 .action-cell { display: flex; align-items: center; gap: 5px; }
 .icon-action { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 1px solid #D9E6EA; border-radius: 6px; background: #FFFFFF; color: #397080; font-size: 15px; cursor: pointer; }
 .icon-action:hover { border-color: #9DCAD4; background: #EFF8FA; }
+.payment-status-stack { display: flex; min-width: 112px; flex-direction: column; align-items: flex-start; gap: 5px; }
+.payment-status-stack .badge { display: inline-flex; }
+.payment-due-note { display: block; font-size: 9px; font-weight: 750; line-height: 1.25; white-space: nowrap; }
+.payment-due-note.due-paid { color: #16835F; }
+.payment-due-note.due-safe { color: #71858F; }
+.payment-due-note.due-upcoming { color: #B17608; }
+.payment-due-note.due-today { color: #C16C08; }
+.payment-due-note.due-overdue { color: #CC3F50; }
+.due-badge-upcoming, .due-badge-today { background: #FFF0C9 !important; color: #9B6200 !important; }
 
 .table-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 2px; color: #7A8D96; font-size: 10px; }
 .table-pagination > div { display: flex; align-items: center; gap: 9px; }
@@ -4140,6 +4149,13 @@ html[data-theme='dark'] .money-cell { color: #DDF3F7 !important; }
 html[data-theme='dark'] .invoice-link { color: #70D0E2; }
 html[data-theme='dark'] .icon-action { border-color: #35444B; background: #1B252A; color: #78CAD9; }
 html[data-theme='dark'] .icon-action:hover { border-color: #4A8290; background: #20343B; }
+html[data-theme='dark'] .payment-due-note.due-paid { color: #67D9B1; }
+html[data-theme='dark'] .payment-due-note.due-safe { color: var(--dark-muted); }
+html[data-theme='dark'] .payment-due-note.due-upcoming,
+html[data-theme='dark'] .payment-due-note.due-today { color: #F2C35B; }
+html[data-theme='dark'] .payment-due-note.due-overdue { color: #FF8997; }
+html[data-theme='dark'] .due-badge-upcoming,
+html[data-theme='dark'] .due-badge-today { background: #3A2D16 !important; color: #F2C35B !important; }
 html[data-theme='dark'] .table-pagination { color: var(--dark-muted); }
 html[data-theme='dark'] .table-pagination button { border-color: #35444B; background: #1B252A; color: var(--dark-text-soft); }
 html[data-theme='dark'] .invoice-program-preview,
@@ -4382,6 +4398,138 @@ html[data-theme='dark'] .schedule-participant > span { background: #203840; colo
 html[data-theme='dark'] .schedule-form-error { border-color: #60313A; background: #351D23; color: #FF9AA6; }
 html[data-theme='dark'] .schedule-delete-icon { background: #351D23; color: #FF8997; }
 
+/* Backend loading gate */
+.backend-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  padding: 24px;
+  background: #F4F7F9;
+  color: var(--ink);
+  text-align: center;
+}
+.backend-loading-visual {
+  position: relative;
+  display: grid;
+  width: 190px;
+  height: 132px;
+  place-items: center;
+}
+.backend-loading-ring {
+  position: absolute;
+  width: 124px;
+  height: 124px;
+  border: 3px solid #D9E8EC;
+  border-top-color: #1687A7;
+  border-right-color: #FFB020;
+  border-radius: 50%;
+  animation: edglo-spin 0.9s linear infinite;
+}
+.backend-loading-logo {
+  position: relative;
+  z-index: 1;
+  width: 154px;
+  height: auto;
+  object-fit: contain;
+  animation: edglo-logo-breathe 1.8s ease-in-out infinite;
+}
+.backend-loading-copy { display: grid; max-width: 410px; gap: 6px; }
+.backend-loading-copy strong { color: var(--ink); font-size: 19px; }
+.backend-loading-copy span { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.backend-loading-actions { display: flex; gap: 10px; }
+
+@keyframes edglo-spin { to { transform: rotate(360deg); } }
+@keyframes edglo-logo-breathe { 50% { transform: scale(1.025); opacity: 0.9; } }
+
+html[data-theme='dark'] .backend-loading-screen { background: #0C1115; color: #F2F6F7; }
+html[data-theme='dark'] .backend-loading-copy strong { color: #F2F6F7; }
+html[data-theme='dark'] .backend-loading-copy span { color: #9AABB3; }
+html[data-theme='dark'] .backend-loading-ring {
+  border-color: #293A41;
+  border-top-color: #64C8DA;
+  border-right-color: #FFB020;
+}
+
+/* Student and teacher details */
+.entity-detail-page { max-width: 1500px; margin: 0 auto; }
+.detail-page-actions { margin-bottom: 20px; }
+.entity-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr); gap: 20px; }
+.entity-profile-card,
+.entity-side-card { overflow: hidden; }
+.entity-profile-head { display: flex; align-items: center; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #E5ECEF; }
+.entity-avatar { display: grid; width: 64px; height: 64px; flex: 0 0 64px; place-items: center; border-radius: 50%; font-size: 25px; font-weight: 850; }
+.student-entity-avatar { background: #E7F5F7; color: #187F93; }
+.teacher-entity-avatar { background: #E8F1FF; color: #347FCC; }
+.entity-profile-copy { min-width: 0; }
+.entity-profile-copy h2 { margin: 0; color: #1F2933; font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; }
+.entity-profile-copy p { margin: 4px 0 7px; color: #6B7C8D; font-size: 12px; }
+.entity-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.entity-info-list { margin-top: 6px; }
+.entity-info-row { display: grid; grid-template-columns: minmax(130px, 0.75fr) minmax(0, 1.25fr); align-items: start; gap: 20px; padding: 12px 0; border-bottom: 1px solid #EDF2F4; }
+.entity-info-row:last-child { border-bottom: 0; }
+.entity-info-row span { color: #687D88; font-size: 12px; font-weight: 650; }
+.entity-info-row strong { color: #203640; font-size: 13px; line-height: 1.45; text-align: right; overflow-wrap: anywhere; }
+.entity-section-title { margin-bottom: 14px; color: #203640; font-size: 16px; }
+.entity-highlight { padding: 17px 18px; border: 1px solid #CFE6EA; border-radius: 7px; background: #EDF8FA; }
+.entity-highlight-label { display: block; margin-bottom: 8px; color: #718690; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.entity-highlight strong,
+.entity-highlight b { display: block; color: #147C92; }
+.entity-highlight strong { font-size: 17px; }
+.entity-highlight b { margin-top: 3px; font-size: 13px; }
+.entity-highlight p { margin: 9px 0 0; color: #566E79; font-size: 12px; line-height: 1.5; }
+.entity-schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 9px; margin-top: 12px; }
+.entity-schedule-item { padding: 10px 12px; border: 1px solid #CAE1E5; border-radius: 7px; background: #F7FBFC; text-align: center; }
+.entity-schedule-item strong,
+.entity-schedule-item span { display: block; }
+.entity-schedule-item strong { color: #177E92; font-size: 13px; }
+.entity-schedule-item span { margin-top: 3px; color: #536C77; font-family: 'DM Mono', monospace; font-size: 11px; }
+.entity-history-list { border-top: 1px solid #EDF2F4; }
+.entity-history-item { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 14px 0; border-bottom: 1px solid #EDF2F4; }
+.entity-history-dot { width: 9px; height: 9px; margin-top: 4px; border-radius: 50%; }
+.entity-history-dot.is-active { background: #20A878; box-shadow: 0 0 0 4px #E2F6EF; }
+.entity-history-dot.is-off { background: #DF5363; box-shadow: 0 0 0 4px #FCE8EB; }
+.entity-history-item strong { display: block; font-size: 13px; }
+.entity-history-item strong.is-active { color: #18865F; }
+.entity-history-item strong.is-off { color: #C74353; }
+.entity-history-item p { margin: 4px 0 0; color: #607680; font-size: 12px; line-height: 1.45; }
+.entity-history-item time { color: #6F838D; font-family: 'DM Mono', monospace; font-size: 11px; white-space: nowrap; }
+
+html[data-theme='dark'] .entity-profile-head,
+html[data-theme='dark'] .entity-info-row,
+html[data-theme='dark'] .entity-history-list,
+html[data-theme='dark'] .entity-history-item { border-color: var(--dark-border); }
+html[data-theme='dark'] .entity-profile-copy h2,
+html[data-theme='dark'] .entity-info-row strong,
+html[data-theme='dark'] .entity-section-title { color: #F1F6F8; }
+html[data-theme='dark'] .entity-profile-copy p,
+html[data-theme='dark'] .entity-info-row span,
+html[data-theme='dark'] .entity-history-item p,
+html[data-theme='dark'] .entity-history-item time { color: #A8B9C0; }
+html[data-theme='dark'] .student-entity-avatar { background: #17323A; color: #72D3E4; }
+html[data-theme='dark'] .teacher-entity-avatar { background: #1A2D43; color: #83B5F4; }
+html[data-theme='dark'] .entity-highlight { border-color: #31505A; background: #17272D; }
+html[data-theme='dark'] .entity-highlight-label { color: #9AADB5; }
+html[data-theme='dark'] .entity-highlight strong,
+html[data-theme='dark'] .entity-highlight b { color: #72D3E4; }
+html[data-theme='dark'] .entity-highlight p { color: #B1C1C7; }
+html[data-theme='dark'] .entity-schedule-item { border-color: #3E5D66; background: #19272C; }
+html[data-theme='dark'] .entity-schedule-item strong { color: #75D2E1; }
+html[data-theme='dark'] .entity-schedule-item span { color: #B3C4CA; }
+html[data-theme='dark'] .entity-history-dot.is-active { background: #5ED5AD; box-shadow: 0 0 0 4px #17352A; }
+html[data-theme='dark'] .entity-history-dot.is-off { background: #FF8997; box-shadow: 0 0 0 4px #351D23; }
+html[data-theme='dark'] .entity-history-item strong.is-active { color: #70DCB7; }
+html[data-theme='dark'] .entity-history-item strong.is-off { color: #FF98A4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .backend-loading-ring,
+  .backend-loading-logo { animation: none; }
+}
+
 @media (max-width: 720px) {
   html[data-theme='dark'] .student-list-page > .student-table-shell { background: transparent !important; }
   html[data-theme='dark'] .student-list-page > .student-table-shell tbody tr,
@@ -4391,10 +4539,15 @@ html[data-theme='dark'] .schedule-delete-icon { background: #351D23; color: #FF8
 }
 
 @media (max-width: 900px) {
+  .entity-detail-grid { grid-template-columns: 1fr; }
   .teacher-status-insight-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
+  .entity-info-row { grid-template-columns: 1fr; gap: 4px; }
+  .entity-info-row strong { text-align: left; }
+  .entity-history-item { grid-template-columns: 10px minmax(0, 1fr); }
+  .entity-history-item time { grid-column: 2; }
   .teacher-status-heading { align-items: flex-start; flex-direction: column; }
   .teacher-status-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .teacher-status-employment { grid-template-columns: 1fr; }

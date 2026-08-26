@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { Payment, Student } from '../types';
+import type { Payment, Student, Teacher } from '../types';
 import { MONTH_NAMES, PAYMENTS, STUDENTS, TEACHERS, formatCurrency } from '../data/mockData';
 import ProgramSummaryTable from '../components/reports/ProgramSummaryTable';
 import { useToast } from '../components/ui/ToastProvider';
@@ -8,7 +8,7 @@ import { DEFAULT_PDF_SETTINGS, printPdfReport, type PdfPrintSettings, type PdfRe
 
 type ReportLog = { id: number; type: PdfReportType; period: string; createdAt: string; status: 'Siap'; month?: number; year?: number };
 type PrintRequest = { type: PdfReportType; month: number; year: number; archive: boolean };
-type Props = { students?: Student[]; payments?: Payment[] };
+type Props = { students?: Student[]; teachers?: Teacher[]; payments?: Payment[] };
 
 const REPORTS: Array<{ type: PdfReportType; description: string; tone: string; icon: ReactNode }> = [
   { type: 'Data Murid', description: 'Daftar murid, orang tua, program, guru, status, dan jadwal belajar.', tone: 'teal', icon: 'MU' },
@@ -17,7 +17,7 @@ const REPORTS: Array<{ type: PdfReportType; description: string; tone: string; i
   { type: 'Keuangan Tahunan', description: 'Rekap pemasukan dan performa penagihan selama satu tahun.', tone: 'yellow', icon: 'TH' },
 ];
 
-export default function Reports({ students = STUDENTS, payments = PAYMENTS }: Props) {
+export default function Reports({ students = STUDENTS, teachers = TEACHERS, payments = PAYMENTS }: Props) {
   const { notify } = useToast();
   const [month, setMonth] = useState(7);
   const [year, setYear] = useState(2026);
@@ -40,7 +40,7 @@ export default function Reports({ students = STUDENTS, payments = PAYMENTS }: Pr
   const visibleLogs = logs.slice(reportPageStart, reportPageStart + reportPageSize);
 
   const openReport = (type: PdfReportType, reportMonth = month, reportYear = year, settings = printSettings) => {
-    const opened = printPdfReport(type, { students, payments, teachers: TEACHERS, month: reportMonth, year: reportYear }, settings);
+    const opened = printPdfReport(type, { students, payments, teachers, month: reportMonth, year: reportYear }, settings);
     notify(opened
       ? { tone: 'info', title: 'Dokumen PDF disiapkan', message: 'Pilih Save as PDF pada dialog cetak untuk menyimpan dokumen.' }
       : { tone: 'warning', title: 'Popup diblokir browser', message: 'Izinkan popup untuk situs ini, lalu coba cetak kembali.' });
@@ -81,7 +81,7 @@ export default function Reports({ students = STUDENTS, payments = PAYMENTS }: Pr
 
       <div className="report-summary-grid">
         <div><span>Murid Aktif</span><strong>{activeStudents.length}</strong><small>{students.length} total terdaftar</small></div>
-        <div><span>Guru Aktif</span><strong>{TEACHERS.filter((teacher) => teacher.status === 'active').length}</strong><small>{TEACHERS.length} total guru</small></div>
+        <div><span>Guru Aktif</span><strong>{teachers.filter((teacher) => teacher.status === 'active').length}</strong><small>{teachers.length} total guru</small></div>
         <div><span>Diterima Bulan Ini</span><strong>{formatCurrency(paid)}</strong><small>{periodPayments.filter((payment) => payment.status === 'paid').length} pembayaran</small></div>
         <div><span>Piutang Bulan Ini</span><strong>{formatCurrency(outstanding)}</strong><small>{periodPayments.filter((payment) => payment.status !== 'paid').length} belum lunas</small></div>
       </div>

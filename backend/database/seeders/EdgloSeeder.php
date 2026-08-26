@@ -17,7 +17,7 @@ class EdgloSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function () {
-            $this->seedUsers();
+            $this->call(InitialAdminSeeder::class);
             $this->seedPrograms();
             $this->seedTeachers();
             $this->seedStudents();
@@ -34,19 +34,6 @@ class EdgloSeeder extends Seeder
                 $payment->reminders()->update(['status' => 'cancelled']);
             }
         });
-    }
-
-    private function seedUsers(): void
-    {
-        foreach ([
-            ['A001', 'Super Admin EdGLO', 'superadmin@edglo.id', '08111222333', 'super_admin'],
-            ['A002', 'Admin EdGLO', 'admin@edglo.id', '08111333444', 'admin'],
-            ['A003', 'Putri Anggraini', 'putri.anggraini@edglo.id', '08111444555', 'admin'],
-            ['A004', 'Rina Amelia', 'rina.amelia@edglo.id', '081177420055', 'admin'],
-            ['A005', 'Bagus Ramadhan', 'bagus.ramadhan@edglo.id', '082211907733', 'admin'],
-        ] as [$code, $name, $email, $phone, $role]) {
-            User::create(compact('code', 'name', 'email', 'phone', 'role') + ['password' => 'admin123', 'is_active' => true]);
-        }
     }
 
     private function seedPrograms(): void

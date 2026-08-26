@@ -15,6 +15,8 @@ type Props = {
   initialTeacherId?: string;
   students: Student[];
   sessions: ClassSession[];
+  teachers?: Teacher[];
+  onTeachersChange?: (teachers: Teacher[]) => void;
 };
 const EMPLOYMENT_LABELS: Record<EmploymentType, string> = { fulltime: 'Fulltime', parttime: 'Part Time', magang: 'Magang' };
 
@@ -128,7 +130,66 @@ function TeacherForm({ teacher, onSave, onCancel }: { teacher?: Teacher; onSave:
 }
 
 function TeacherDetail({ teacher, onEdit, onBack }: { teacher: Teacher; onEdit: () => void; onBack: () => void }) {
-  return <div><div className="page-header"><button className="btn-secondary" onClick={onBack}>Kembali</button><button className="btn-primary" onClick={onEdit}>Edit Guru</button></div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}><div className="card"><div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}><div style={{ width: 60, height: 60, borderRadius: '50%', background: '#E0EFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 24, color: '#2F8FD3' }}>{teacher.fullName.charAt(0)}</div><div><div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 20, fontWeight: 700, color: '#1F2933' }}>{teacher.fullName}</div><div style={{ fontSize: 13, color: '#6B7C8D' }}>ID: {teacher.id}</div><div style={{ display: 'flex', gap: 6, marginTop: 4 }}><span className={`badge badge-${teacher.status}`}>{teacher.status === 'active' ? 'Aktif' : 'Off'}</span><span className={`badge badge-${teacher.employmentType}`}>{EMPLOYMENT_LABELS[teacher.employmentType]}</span></div></div></div>{[['Tempat, Tgl Lahir', `${teacher.birthPlace}, ${formatDate(teacher.birthDate)}`], ['Agama', teacher.religion], ['Alamat', teacher.address], ['Email', teacher.email], ['No. Telepon', teacher.phone], ['Pendidikan Terakhir', teacher.lastEducation], ['Tanggal Masuk', formatDate(teacher.joinDate)], ['Tanggal Off', teacher.leaveDate ? formatDate(teacher.leaveDate) : '-']].map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F0F5F6' }}><span style={{ fontSize: 13, color: '#6B7C8D', fontWeight: 600 }}>{label}</span><span style={{ fontSize: 13, color: '#1F2933', fontWeight: 700, textAlign: 'right', maxWidth: '60%' }}>{value}</span></div>)}</div><div className="card"><div className="section-title" style={{ fontSize: 15, marginBottom: 12 }}>Riwayat Status</div>{teacher.statusHistory.map((h, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #F0F5F6' }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: h.action === 'activated' ? '#2EAD7A' : '#E05252', flexShrink: 0 }} /><div style={{ flex: 1 }}><span style={{ fontSize: 13, fontWeight: 700, color: h.action === 'activated' ? '#1A8C60' : '#C03C3C' }}>{h.action === 'activated' ? 'Diaktifkan' : 'Dinonaktifkan'}</span>{h.reason && <span style={{ fontSize: 13, color: '#6B7C8D' }}> - {h.reason}</span>}</div><span style={{ fontSize: 12, fontFamily: 'DM Mono, monospace', color: '#6B7C8D' }}>{formatDate(h.date)}</span></div>)}</div></div></div>;
+  const details = [
+    ['Tempat, Tgl Lahir', `${teacher.birthPlace}, ${formatDate(teacher.birthDate)}`],
+    ['Agama', teacher.religion],
+    ['Alamat', teacher.address],
+    ['Email', teacher.email],
+    ['No. Telepon', teacher.phone],
+    ['Pendidikan Terakhir', teacher.lastEducation],
+    ['Tanggal Masuk', formatDate(teacher.joinDate)],
+    ['Tanggal Off', teacher.leaveDate ? formatDate(teacher.leaveDate) : '-'],
+  ];
+
+  return (
+    <div className="entity-detail-page teacher-detail-page">
+      <div className="page-header detail-page-actions">
+        <button className="btn-secondary" onClick={onBack}>Kembali</button>
+        <button className="btn-primary" onClick={onEdit}>Edit Guru</button>
+      </div>
+      <div className="entity-detail-grid">
+        <section className="card entity-profile-card">
+          <div className="entity-profile-head">
+            <div className="entity-avatar teacher-entity-avatar">{teacher.fullName.charAt(0)}</div>
+            <div className="entity-profile-copy">
+              <h2>{teacher.fullName}</h2>
+              <p>ID: {teacher.id}</p>
+              <div className="entity-badges">
+                <span className={'badge badge-' + teacher.status}>{teacher.status === 'active' ? 'Aktif' : 'Off'}</span>
+                <span className={'badge badge-' + teacher.employmentType}>{EMPLOYMENT_LABELS[teacher.employmentType]}</span>
+              </div>
+            </div>
+          </div>
+          <div className="entity-info-list">
+            {details.map(([label, value]) => (
+              <div className="entity-info-row" key={label}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card entity-side-card">
+          <div className="section-title entity-section-title">Riwayat Status</div>
+          <div className="entity-history-list">
+            {teacher.statusHistory.map((history, index) => (
+              <div className="entity-history-item" key={index}>
+                <span className={'entity-history-dot ' + (history.action === 'activated' ? 'is-active' : 'is-off')} />
+                <div>
+                  <strong className={history.action === 'activated' ? 'is-active' : 'is-off'}>
+                    {history.action === 'activated' ? 'Diaktifkan' : 'Dinonaktifkan'}
+                  </strong>
+                  {history.reason && <p>{history.reason}</p>}
+                </div>
+                <time>{formatDate(history.date)}</time>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function TeacherActivation({ teachers, setTeachers }: { teachers: Teacher[]; setTeachers: (t: Teacher[]) => void }) {
@@ -146,9 +207,11 @@ function TeacherActivation({ teachers, setTeachers }: { teachers: Teacher[]; set
   return <div className="teacher-status-page"><div className="card teacher-status-table-shell" style={{ padding: 0, overflow: 'hidden' }}><table className="teacher-status-table" style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}><thead><tr style={{ background: '#F5FAFB', borderBottom: '1.5px solid #E2EEF0' }}>{['Nama Guru', 'Tipe Kerja', 'Tgl Masuk', 'Tgl Off', 'Status', 'Aksi'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '11px 14px', fontSize: 11, fontWeight: 800, color: '#6B7C8D', textTransform: 'uppercase' }}>{h}</th>)}</tr></thead><tbody>{visibleStatusTeachers.map((teacher, rowIndex) => <tr key={teacher.id} className="table-row" style={{ borderBottom: '1px solid #F0F5F6' }}><td style={{ padding: '10px 14px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span className="table-row-number">{statusPageStart + rowIndex + 1}</span><strong style={{ fontSize: 13, color: '#1F2933' }}>{teacher.fullName}</strong></div></td><td style={{ padding: '10px 14px' }}><span className={`badge badge-${teacher.employmentType}`}>{EMPLOYMENT_LABELS[teacher.employmentType]}</span></td><td style={{ padding: '10px 14px', fontSize: 12, color: '#6B7C8D' }}>{formatDate(teacher.joinDate)}</td><td style={{ padding: '10px 14px', fontSize: 12, color: '#6B7C8D' }}>{teacher.leaveDate ? formatDate(teacher.leaveDate) : '-'}</td><td style={{ padding: '10px 14px' }}><span className={`badge badge-${teacher.status}`}>{teacher.status === 'active' ? 'Aktif' : 'Off'}</span></td><td style={{ padding: '10px 14px' }}>{teacher.status === 'active' ? <button className="btn-danger btn-sm" onClick={() => setModal({ teacher, action: 'off' })}>Nonaktifkan</button> : <button className="btn-primary btn-sm" onClick={() => setModal({ teacher, action: 'activate' })}>Aktifkan Kembali</button>}</td></tr>)}</tbody></table></div><DataPagination totalItems={teachers.length} page={safeStatusPage} pageSize={statusPageSize} onPageChange={setStatusPage} onPageSizeChange={(size) => { setStatusPageSize(size); setStatusPage(1); }} label="guru" />{modal && <div className="modal-overlay"><div className="modal-box"><div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{modal.action === 'off' ? 'Nonaktifkan Guru' : 'Aktifkan Kembali'}</div><div style={{ fontSize: 14, color: '#6B7C8D', marginBottom: 20 }}>{modal.teacher.fullName}</div>{modal.action === 'off' && <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}><div><label className="input-label">Tanggal Off</label><input className="input-field" type="date" value={offDate} onChange={(e) => setOffDate(e.target.value)} /></div><div><label className="input-label">Alasan</label><textarea className="input-field" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} /></div></div>}<div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}><button className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button className={modal.action === 'off' ? 'btn-danger' : 'btn-primary'} onClick={doAction}>{modal.action === 'off' ? 'Nonaktifkan' : 'Aktifkan'}</button></div></div></div>}</div>;
 }
 
-export default function Teachers({ initialView = 'list', initialTeacherId, students, sessions }: Props) {
+export default function Teachers({ initialView = 'list', initialTeacherId, students, sessions, teachers: controlledTeachers, onTeachersChange }: Props) {
   const { notify } = useToast();
-  const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
+  const [fallbackTeachers, setFallbackTeachers] = useState<Teacher[]>(initialTeachers);
+  const teachers = controlledTeachers ?? fallbackTeachers;
+  const setTeachers = onTeachersChange ?? setFallbackTeachers;
   const [subPage, setSubPage] = useState<TeacherView>(initialView);
   const [selectedId, setSelectedId] = useState<string | undefined>(initialTeacherId);
   const selectedTeacher = teachers.find((t) => t.id === selectedId);

@@ -43,6 +43,12 @@ export type ClassSession = {
   room: string;
   capacity: number;
   notes?: string;
+  isActive?: boolean;
+};
+
+export type AuthUser = Admin & {
+  isActive: boolean;
+  lastLoginAt?: string;
 };
 
 export type StatusHistory = {

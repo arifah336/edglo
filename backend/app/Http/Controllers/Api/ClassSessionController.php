@@ -34,7 +34,9 @@ class ClassSessionController extends Controller
             $query->where('is_active', $request->boolean('is_active'));
         }
 
-        return ClassSessionResource::collection($query->orderBy('day')->orderBy('time')->get());
+        $perPage = min(100, max(1, $request->integer('per_page', 10)));
+
+        return ClassSessionResource::collection($query->orderBy('day')->orderBy('time')->paginate($perPage));
     }
 
     public function store(ClassSessionRequest $request): JsonResponse

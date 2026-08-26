@@ -4,15 +4,12 @@ import {
   PROGRAMS,
   STUDENTS,
   TEACHERS,
-  getProgramById,
   getTimesForDay,
 } from '../data/mockData';
-import type { ClassSession, Student } from '../types';
+import type { ClassSession, Program, Student, Teacher } from '../types';
 import { createClassSessions } from '../data/scheduleState';
 import { useToast } from '../components/ui/ToastProvider';
 import ScheduleTable from '../components/schedule/ScheduleTable';
-
-const activeTeachers = TEACHERS.filter((teacher) => teacher.status === 'active');
 
 const DAY_THEME: Record<string, { color: string; soft: string; short: string }> = {
   Senin: { color: '#1687A7', soft: '#E7F5F8', short: 'Sen' },
@@ -29,6 +26,8 @@ type Props = {
   students?: Student[];
   sessions?: ClassSession[];
   onSessionsChange?: (sessions: ClassSession[]) => void;
+  teachers?: Teacher[];
+  programs?: Program[];
 };
 
 function ScheduleIcon({ children, size = 18 }: { children: ReactNode; size?: number }) {
@@ -49,12 +48,13 @@ function ScheduleIcon({ children, size = 18 }: { children: ReactNode; size?: num
   );
 }
 
-function createEmptyForm(day = 'Senin'): ScheduleForm {
+function createEmptyForm(day = 'Senin', teachers = TEACHERS, programs = PROGRAMS): ScheduleForm {
+  const activeTeachers = teachers.filter((teacher) => teacher.status === 'active');
   return {
     day,
     time: getTimesForDay(day)[0],
     teacherId: activeTeachers[0]?.id ?? '',
-    programId: PROGRAMS[0]?.id ?? '',
+    programId: programs[0]?.id ?? '',
     studentIds: [],
     room: 'Ruang A',
     capacity: 6,
@@ -78,6 +78,9 @@ function timeToMinutes(time: string) {
 export default function Schedule(props: Props = {}) {
   const { notify } = useToast();
   const students = props.students ?? STUDENTS;
+  const teachers = props.teachers ?? TEACHERS;
+  const programs = props.programs ?? PROGRAMS;
+  const activeTeachers = teachers.filter((teacher) => teacher.status === 'active');
   const [fallbackSessions, setFallbackSessions] = useState<ClassSession[]>(() => createClassSessions(STUDENTS));
   const sessions = props.sessions ?? fallbackSessions;
   const onSessionsChange = props.onSessionsChange ?? setFallbackSessions;
@@ -87,7 +90,7 @@ export default function Schedule(props: Props = {}) {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; sessionId?: string } | null>(null);
-  const [form, setForm] = useState<ScheduleForm>(() => createEmptyForm());
+  const [form, setForm] = useState<ScheduleForm>(() => createEmptyForm('Senin', teachers, programs));
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ClassSession | null>(null);
 
@@ -96,8 +99,8 @@ export default function Schedule(props: Props = {}) {
     if (teacherFilter !== 'all' && session.teacherId !== teacherFilter) return false;
     if (dayFilter !== 'all' && session.day !== dayFilter) return false;
     if (search) {
-      const teacher = TEACHERS.find((item) => item.id === session.teacherId)?.fullName ?? '';
-      const program = getProgramById(session.programId)?.name ?? '';
+      const teacher = teachers.find((item) => item.id === session.teacherId)?.fullName ?? '';
+      const program = programs.find((item) => item.id === session.programId)?.name ?? '';
       const query = search.toLowerCase();
       if (![teacher, program, session.room, session.day, session.time].some((value) => value.toLowerCase().includes(query))) return false;
     }
@@ -119,7 +122,7 @@ export default function Schedule(props: Props = {}) {
   });
 
   const openAdd = (day = dayFilter === 'all' ? 'Senin' : dayFilter) => {
-    setForm(createEmptyForm(day));
+    setForm(createEmptyForm(day, teachers, programs));
     setFormError('');
     setEditor({ mode: 'add' });
   };
@@ -192,7 +195,7 @@ export default function Schedule(props: Props = {}) {
     );
 
     if (conflict) {
-      const teacher = TEACHERS.find((item) => item.id === form.teacherId);
+      const teacher = teachers.find((item) => item.id === form.teacherId);
       setFormError(
         `${teacher?.fullName ?? 'Guru'} sudah memiliki kelas pada ${form.day}, pukul ${form.time} WIB.`,
       );
@@ -349,8 +352,8 @@ export default function Schedule(props: Props = {}) {
                   </button>
                 ) : (
                   daySessions.map((session) => {
-                    const teacher = TEACHERS.find((item) => item.id === session.teacherId);
-                    const program = getProgramById(session.programId);
+                    const teacher = teachers.find((item) => item.id === session.teacherId);
+                    const program = programs.find((item) => item.id === session.programId);
                     const isFull = session.studentIds.length >= session.capacity;
                     const classStudents = session.studentIds
                       .map((studentId) => students.find((student) => student.id === studentId))
@@ -465,7 +468,7 @@ export default function Schedule(props: Props = {}) {
               <div>
                 <label className="input-label">Program *</label>
                 <select className="input-field" value={form.programId} onChange={(event) => updateProgram(event.target.value)}>
-                  {PROGRAMS.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
+                  {programs.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
                 </select>
               </div>
               <div>
@@ -525,7 +528,7 @@ export default function Schedule(props: Props = {}) {
             <span className="schedule-delete-icon"><ScheduleIcon size={24}><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6" /></ScheduleIcon></span>
             <h2>Hapus kelas?</h2>
             <p>
-              Kelas {getProgramById(deleteTarget.programId)?.name} pada {deleteTarget.day}, pukul {deleteTarget.time} WIB akan dihapus.
+              Kelas {programs.find((program) => program.id === deleteTarget.programId)?.name} pada {deleteTarget.day}, pukul {deleteTarget.time} WIB akan dihapus.
             </p>
             <div className="schedule-modal-actions">
               <button type="button" className="btn-secondary" onClick={() => setDeleteTarget(null)}>Batal</button>

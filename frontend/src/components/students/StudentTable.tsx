@@ -1,9 +1,9 @@
-import type { Page, Student } from '../../types';
-import { TEACHERS, formatCurrency, formatDate, getProgramById } from '../../data/mockData';
+import type { Page, Program, Student, Teacher } from '../../types';
+import { PROGRAMS, TEACHERS, formatCurrency, formatDate } from '../../data/mockData';
 
-type Props = { students: Student[]; onNavigate: (page: Page, id?: string) => void; startIndex?: number };
+type Props = { students: Student[]; teachers?: Teacher[]; programs?: Program[]; onNavigate: (page: Page, id?: string) => void; startIndex?: number };
 
-export default function StudentTable({ students, onNavigate, startIndex = 0 }: Props) {
+export default function StudentTable({ students, teachers = TEACHERS, programs = PROGRAMS, onNavigate, startIndex = 0 }: Props) {
   return (
     <div className="card student-table-shell" style={{ padding: 0, overflow: 'hidden' }}>
       <table className="student-data-table">
@@ -11,8 +11,8 @@ export default function StudentTable({ students, onNavigate, startIndex = 0 }: P
         <tbody>
           {students.length === 0 && <tr><td colSpan={8} className="student-table-empty">Tidak ada data murid yang sesuai.</td></tr>}
           {students.map((student, rowIndex) => {
-            const program = getProgramById(student.programId);
-            const teacher = TEACHERS.find((item) => item.id === student.teacherId);
+            const program = programs.find((item) => item.id === student.programId);
+            const teacher = teachers.find((item) => item.id === student.teacherId);
             return (
               <tr key={student.id} className="table-row">
                 <td data-label="Nama Murid"><div className="student-name-cell"><span className="table-row-number">{startIndex + rowIndex + 1}</span><span className="student-list-avatar">{student.fullName.charAt(0)}</span><div className="student-name-copy"><strong>{student.fullName}</strong><small>ID {student.id}</small></div></div></td>

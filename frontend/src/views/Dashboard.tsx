@@ -8,73 +8,23 @@ import {
   TODAY,
   formatCurrency,
   formatDate,
-  getProgramById,
-  getStudentById,
 } from '../data/mockData';
-import type { Page, Payment } from '../types';
+import type { Page, Payment, Program, Student, Teacher } from '../types';
 
 type Props = {
   onNavigate: (page: Page, id?: string) => void;
+  students?: Student[];
+  teachers?: Teacher[];
+  payments?: Payment[];
+  programs?: Program[];
 };
 
 const today = new Date(`${TODAY}T00:00:00`);
 const todayMonth = today.getMonth() + 1;
 const todayYear = today.getFullYear();
-const activeStudents = STUDENTS.filter((student) => student.status === 'active');
-const activeTeachers = TEACHERS.filter((teacher) => teacher.status === 'active');
-const thisMonthPayments = PAYMENTS.filter((payment) => payment.month === todayMonth && payment.year === todayYear);
-const paidThisMonth = thisMonthPayments
-  .filter((payment) => payment.status === 'paid')
-  .reduce((sum, payment) => sum + payment.total, 0);
-const overduePayments = PAYMENTS.filter((payment) => payment.status === 'overdue');
-const dueTodayPayments = PAYMENTS.filter((payment) => payment.status !== 'paid' && payment.dueDate === TODAY);
-const totalWeeklySessions = activeStudents.reduce((sum, student) => sum + student.schedules.length, 0);
-const fridaySessions = activeStudents.reduce(
-  (sum, student) => sum + student.schedules.filter((schedule) => schedule.day === 'Jumat').length,
-  0,
-);
-
 const previousMonthDate = new Date(todayYear, todayMonth - 2, 1);
-const previousMonthPaid = PAYMENTS
-  .filter(
-    (payment) =>
-      payment.month === previousMonthDate.getMonth() + 1 &&
-      payment.year === previousMonthDate.getFullYear() &&
-      payment.status === 'paid',
-  )
-  .reduce((sum, payment) => sum + payment.total, 0);
-const incomeGrowth = previousMonthPaid > 0
-  ? Math.round(((paidThisMonth - previousMonthPaid) / previousMonthPaid) * 100)
-  : 0;
-const collectionRate = thisMonthPayments.length
-  ? Math.round((thisMonthPayments.filter((payment) => payment.status === 'paid').length / thisMonthPayments.length) * 100)
-  : 0;
 
-const chartMonths = Array.from({ length: 6 }, (_, index) => {
-  const date = new Date(todayYear, todayMonth - 6 + index, 1);
-  const value = PAYMENTS
-    .filter(
-      (payment) =>
-        payment.month === date.getMonth() + 1 &&
-        payment.year === date.getFullYear() &&
-        payment.status === 'paid',
-    )
-    .reduce((sum, payment) => sum + payment.total, 0);
-
-  return {
-    label: MONTH_NAMES[date.getMonth()].slice(0, 3),
-    fullLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`,
-    value,
-  };
-});
-
-const programStats = PROGRAMS
-  .map((program) => ({
-    ...program,
-    count: activeStudents.filter((student) => student.programId === program.id).length,
-  }))
-  .filter((program) => program.count > 0)
-  .sort((a, b) => b.count - a.count);
+type ChartMonth = { label: string; fullLabel: string; value: number };
 
 const programColors = ['#1687A7', '#1EB980', '#FFB020', '#6C63D9', '#E45D79', '#5B8DEF'];
 
@@ -134,7 +84,7 @@ function MetricCard({
   );
 }
 
-function RevenueChart() {
+function RevenueChart({ data }: { data: ChartMonth[] }) {
   const width = 680;
   const height = 230;
   const left = 38;
@@ -143,10 +93,10 @@ function RevenueChart() {
   const bottom = 38;
   const chartWidth = width - left - right;
   const chartHeight = height - top - bottom;
-  const maxValue = Math.max(...chartMonths.map((item) => item.value), 1);
+  const maxValue = Math.max(...data.map((item) => item.value), 1);
   const roundedMax = Math.ceil(maxValue / 1_000_000) * 1_000_000 || 1_000_000;
-  const points = chartMonths.map((item, index) => {
-    const x = left + (chartWidth / (chartMonths.length - 1)) * index;
+  const points = data.map((item, index) => {
+    const x = left + (chartWidth / Math.max(data.length - 1, 1)) * index;
     const y = top + chartHeight - (item.value / roundedMax) * chartHeight;
     return { ...item, x, y };
   });
@@ -189,8 +139,8 @@ function RevenueChart() {
   );
 }
 
-function PaymentReminder({ payment }: { payment: Payment }) {
-  const student = getStudentById(payment.studentId);
+function PaymentReminder({ payment, students, programs }: { payment: Payment; students: Student[]; programs: Program[] }) {
+  const student = students.find((item) => item.id === payment.studentId);
   const isOverdue = payment.status === 'overdue';
   const difference = Math.max(
     0,
@@ -204,7 +154,7 @@ function PaymentReminder({ payment }: { payment: Payment }) {
       </span>
       <div className="reminder-main">
         <strong>{student?.fullName ?? 'Murid'}</strong>
-        <span>{getProgramById(student?.programId ?? '')?.name ?? '-'}</span>
+        <span>{programs.find((item) => item.id === student?.programId)?.name ?? '-'}</span>
       </div>
       <div className="reminder-amount">
         <strong>{compactCurrency(payment.total)}</strong>
@@ -216,7 +166,23 @@ function PaymentReminder({ payment }: { payment: Payment }) {
   );
 }
 
-export default function Dashboard({ onNavigate }: Props) {
+export default function Dashboard({ onNavigate, students = STUDENTS, teachers = TEACHERS, payments = PAYMENTS, programs = PROGRAMS }: Props) {
+  const activeStudents = students.filter((student) => student.status === 'active');
+  const activeTeachers = teachers.filter((teacher) => teacher.status === 'active');
+  const thisMonthPayments = payments.filter((payment) => payment.month === todayMonth && payment.year === todayYear);
+  const paidThisMonth = thisMonthPayments.filter((payment) => payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
+  const overduePayments = payments.filter((payment) => payment.status === 'overdue');
+  const dueTodayPayments = payments.filter((payment) => payment.status !== 'paid' && payment.dueDate === TODAY);
+  const totalWeeklySessions = activeStudents.reduce((sum, student) => sum + student.schedules.length, 0);
+  const fridaySessions = activeStudents.reduce((sum, student) => sum + student.schedules.filter((schedule) => schedule.day === 'Jumat').length, 0);
+  const previousMonthPaid = payments.filter((payment) => payment.month === previousMonthDate.getMonth() + 1 && payment.year === previousMonthDate.getFullYear() && payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
+  const incomeGrowth = previousMonthPaid > 0 ? Math.round(((paidThisMonth - previousMonthPaid) / previousMonthPaid) * 100) : 0;
+  const collectionRate = thisMonthPayments.length ? Math.round((thisMonthPayments.filter((payment) => payment.status === 'paid').length / thisMonthPayments.length) * 100) : 0;
+  const chartMonths = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(todayYear, todayMonth - 6 + index, 1);
+    return { label: MONTH_NAMES[date.getMonth()].slice(0, 3), fullLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`, value: payments.filter((payment) => payment.month === date.getMonth() + 1 && payment.year === date.getFullYear() && payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0) };
+  });
+  const programStats = programs.map((program) => ({ ...program, count: activeStudents.filter((student) => student.programId === program.id).length })).filter((program) => program.count > 0).sort((a, b) => b.count - a.count);
   const reminders = [...dueTodayPayments, ...overduePayments]
     .filter((payment, index, list) => list.findIndex((item) => item.id === payment.id) === index)
     .slice(0, 4);
@@ -228,7 +194,7 @@ export default function Dashboard({ onNavigate }: Props) {
     const end = ((previousCount + program.count) / Math.max(activeStudents.length, 1)) * 360;
     return `${programColors[index % programColors.length]} ${start}deg ${end}deg`;
   });
-  const latestStudents = STUDENTS
+  const latestStudents = students
     .slice()
     .sort((a, b) => b.joinDate.localeCompare(a.joinDate))
     .slice(0, 5);
@@ -257,7 +223,7 @@ export default function Dashboard({ onNavigate }: Props) {
         <MetricCard
           label="Murid Aktif"
           value={activeStudents.length}
-          detail={`${STUDENTS.length} murid terdaftar`}
+          detail={`${students.length} murid terdaftar`}
           trend="+2 bulan ini"
           tone="teal"
           icon={<DashboardIcon><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /></DashboardIcon>}
@@ -301,7 +267,7 @@ export default function Dashboard({ onNavigate }: Props) {
               <span>{MONTH_NAMES[todayMonth - 1]} {todayYear}</span>
             </div>
           </div>
-          <RevenueChart />
+          <RevenueChart data={chartMonths} />
           <div className="chart-summary">
             <div><span className="summary-dot teal" /><span>Sudah diterima</span><strong>{collectionRate}%</strong></div>
             <div><span className="summary-dot yellow" /><span>Belum terbayar</span><strong>{thisMonthPayments.length - thisMonthPayments.filter((payment) => payment.status === 'paid').length}</strong></div>
@@ -351,7 +317,7 @@ export default function Dashboard({ onNavigate }: Props) {
           </div>
           <div className="reminder-list">
             {reminders.length > 0 ? (
-              reminders.map((payment) => <PaymentReminder key={payment.id} payment={payment} />)
+              reminders.map((payment) => <PaymentReminder key={payment.id} payment={payment} students={students} programs={programs} />)
             ) : (
               <div className="dashboard-empty">
                 <DashboardIcon size={24}><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></DashboardIcon>
@@ -388,7 +354,7 @@ export default function Dashboard({ onNavigate }: Props) {
               </thead>
               <tbody>
                 {latestStudents.map((student, index) => {
-                  const teacher = TEACHERS.find((item) => item.id === student.teacherId);
+                  const teacher = teachers.find((item) => item.id === student.teacherId);
                   return (
                     <tr key={student.id}>
                       <td>
@@ -397,7 +363,7 @@ export default function Dashboard({ onNavigate }: Props) {
                           <div><strong>{student.fullName}</strong><span>{student.parentName}</span></div>
                         </div>
                       </td>
-                      <td><span className="program-chip">{getProgramById(student.programId)?.name ?? '-'}</span></td>
+                      <td><span className="program-chip">{programs.find((item) => item.id === student.programId)?.name ?? '-'}</span></td>
                       <td>{teacher?.fullName ?? '-'}</td>
                       <td>{formatDate(student.joinDate)}</td>
                       <td><span className={`status-pill ${student.status}`}><i />{student.status === 'active' ? 'Aktif' : 'Off'}</span></td>
