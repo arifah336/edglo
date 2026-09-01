@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import type { Payment, Student } from '../../types';
-import { BOOK_FEE, MONTH_NAMES, PROGRAMS, REGISTRATION_FEE, formatCurrency } from '../../data/mockData';
+import type { Payment, Program, Student } from '../../types';
+import { BOOK_FEE, MONTH_NAMES, REGISTRATION_FEE, formatCurrency } from '../../data/mockData';
 
 export type NewInvoice = Omit<Payment, 'id' | 'status' | 'paidDate'>;
 
 type Props = {
   students: Student[];
+  programs: Program[];
   initialMonth: number;
   initialYear: number;
   onClose: () => void;
@@ -18,7 +19,7 @@ function dueDateFor(student: Student | undefined, month: number, year: number) {
   return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(joinDay, maxDay)).padStart(2, '0')}`;
 }
 
-export default function InvoiceModal({ students, initialMonth, initialYear, onClose, onCreate }: Props) {
+export default function InvoiceModal({ students, programs, initialMonth, initialYear, onClose, onCreate }: Props) {
   const activeStudents = students.filter((student) => student.status === 'active');
   const [studentId, setStudentId] = useState(activeStudents[0]?.id ?? '');
   const [month, setMonth] = useState(initialMonth);
@@ -27,7 +28,7 @@ export default function InvoiceModal({ students, initialMonth, initialYear, onCl
   const [includeBook, setIncludeBook] = useState(false);
   const [notes, setNotes] = useState('');
   const student = students.find((item) => item.id === studentId);
-  const program = PROGRAMS.find((item) => item.id === student?.programId);
+  const program = programs.find((item) => item.id === student?.programId);
   const registrationFee = includeRegistration ? REGISTRATION_FEE : 0;
   const bookFee = includeBook ? BOOK_FEE : 0;
   const total = (program?.price ?? 0) + registrationFee + bookFee;

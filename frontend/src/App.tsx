@@ -33,7 +33,7 @@ function getAuthSnapshot() {
 }
 
 function getServerAuthSnapshot() {
-  return '';
+  return null;
 }
 
 function parseAuthSession(snapshot: string): AuthSession | null {
@@ -53,6 +53,15 @@ function writeAuthSession(session?: AuthSession) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Terjadi kesalahan saat menghubungi server.';
+}
+
+function AuthHydrationLoading() {
+  return (
+    <div className="auth-loading" role="status" aria-live="polite">
+      <Image src="/edglo-logo.png" alt="EdGLO" width={454} height={244} priority />
+      <span>Memulihkan sesi...</span>
+    </div>
+  );
 }
 
 function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
@@ -94,7 +103,6 @@ function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => 
             {error && <div className="login-error" role="alert">{error}</div>}
             <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px 0', fontSize: 15, marginTop: 4 }}>{loading ? 'Memeriksa akun...' : 'Masuk'}</button>
           </form>
-          <div className="login-demo-box"><strong>Akun awal:</strong> superadmin@edglo.id / admin123</div>
         </div>
       </div>
     </div>
@@ -110,7 +118,7 @@ function BackendLoading({ error, onRetry, onLogout }: { error?: string; onRetry:
       </div>
       <div className="backend-loading-copy">
         <strong>{error ? 'Data belum berhasil dimuat' : 'Menyiapkan EdGLO'}</strong>
-        <span>{error ?? 'Mengambil data murid, guru, jadwal, dan keuangan dari backend...'}</span>
+        {error && <span>{error}</span>}
       </div>
       {error && <div className="backend-loading-actions"><button type="button" className="btn-secondary" onClick={onLogout}>Keluar</button><button type="button" className="btn-primary" onClick={onRetry}>Coba Lagi</button></div>}
     </div>
@@ -124,7 +132,7 @@ function replaceById<T extends { id: string }>(items: T[], item: T, oldId = item
 export default function App() {
   const { notify } = useToast();
   const authSnapshot = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getServerAuthSnapshot);
-  const authSession = parseAuthSession(authSnapshot);
+  const authSession = authSnapshot === null ? null : parseAuthSession(authSnapshot);
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [navContext, setNavContext] = useState<{ id?: string }>({});
   const [dataReady, setDataReady] = useState(false);
@@ -142,22 +150,14 @@ export default function App() {
     setDataReady(false);
     setLoadingError('');
     try {
-      const [profile, nextPrograms, nextStudents, nextTeachers, nextSessions, nextPayments, nextAdmins] = await Promise.all([
-        api.me(session.token),
-        api.programs(session.token),
-        api.students(session.token),
-        api.teachers(session.token),
-        api.sessions(session.token),
-        api.payments(session.token),
-        session.user.role === 'super_admin' ? api.admins(session.token) : Promise.resolve([]),
-      ]);
-      writeAuthSession({ token: session.token, user: profile });
-      setPrograms(nextPrograms);
-      setStudents(nextStudents);
-      setTeachers(nextTeachers);
-      setClassSessions(nextSessions);
-      setPayments(nextPayments);
-      setAdmins(nextAdmins);
+      const data = await api.bootstrap(session.token);
+      writeAuthSession({ token: session.token, user: data.user });
+      setPrograms(data.programs);
+      setStudents(data.students);
+      setTeachers(data.teachers);
+      setClassSessions(data.sessions);
+      setPayments(data.payments);
+      setAdmins(data.admins);
       setDataReady(true);
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.status === 401) writeAuthSession();
@@ -183,10 +183,19 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (token) await api.logout(token).catch(() => undefined);
+    const logoutToken = token;
     writeAuthSession();
+    setDataReady(false);
+    setLoadingError('');
+    setStudents([]);
+    setTeachers([]);
+    setPrograms([]);
+    setClassSessions([]);
+    setPayments([]);
+    setAdmins([]);
     setCurrentPage('dashboard');
     setNavContext({});
+    if (logoutToken) await api.logout(logoutToken).catch(() => undefined);
   };
 
   const handleStudentsChange = async (next: Student[]) => {
@@ -281,6 +290,7 @@ export default function App() {
     setNavContext({ id });
   };
 
+  if (authSnapshot === null) return <AuthHydrationLoading />;
   if (!authSession) return <LoginPage onLogin={handleLogin} />;
   if (!dataReady) return <BackendLoading error={loadingError || undefined} onRetry={() => void loadData(authSession)} onLogout={() => void handleLogout()} />;
 
@@ -298,7 +308,7 @@ export default function App() {
       case 'schedule': return <Schedule students={students} teachers={teachers} programs={programs} sessions={classSessions} onSessionsChange={handleSessionsChange} />;
       case 'finance-monthly': return <Finance mode="monthly" students={students} programs={programs} payments={payments} onPaymentsChange={handlePaymentsChange} />;
       case 'finance-yearly': return <Finance mode="yearly" students={students} programs={programs} payments={payments} onPaymentsChange={handlePaymentsChange} />;
-      case 'reports': return <Reports students={students} teachers={teachers} payments={payments} />;
+      case 'reports': return <Reports students={students} teachers={teachers} programs={programs} payments={payments} />;
       case 'admin-management': return authSession.user.role === 'super_admin' ? <AdminManagement admins={admins} token={authSession.token} onAdminsChange={setAdmins} /> : <div style={{ padding: 40, textAlign: 'center', color: '#6B7C8D' }}>Akses ditolak</div>;
       case 'settings': return <Settings user={authSession.user} token={authSession.token} onUserChange={(nextUser) => writeAuthSession({ token: authSession.token, user: nextUser })} />;
       default: return <Dashboard onNavigate={handleNavigate} students={students} teachers={teachers} payments={payments} programs={programs} />;

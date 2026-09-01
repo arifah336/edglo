@@ -49,12 +49,22 @@ function collection<T>(promise: Promise<Collection<T>>): Promise<T[]> {
 }
 
 export type LoginResponse = { message: string; token: string; tokenType: 'Bearer'; user: AuthUser };
+export type BootstrapResponse = {
+  user: AuthUser;
+  programs: Program[];
+  students: Student[];
+  teachers: Teacher[];
+  sessions: ClassSession[];
+  payments: Payment[];
+  admins: Admin[];
+};
 
 export const api = {
   login: (email: string, password: string) => request<LoginResponse>('/auth/login', undefined, {
     method: 'POST',
     body: JSON.stringify({ email, password, deviceName: 'edglo-nextjs' }),
   }),
+  bootstrap: (token: string) => resource(request<Resource<BootstrapResponse>>('/bootstrap', token)),
   me: (token: string) => resource(request<Resource<AuthUser>>('/auth/me', token)),
   logout: (token: string) => request<{ message: string }>('/auth/logout', token, { method: 'POST' }),
   updateProfile: (token: string, data: Pick<AuthUser, 'name' | 'email' | 'phone'>) =>

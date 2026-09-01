@@ -1,5 +1,5 @@
-import type { Payment, Student, Teacher } from '../types';
-import { MONTH_NAMES, PROGRAMS, TEACHERS, formatCurrency, formatDate, getProgramById } from '../data/mockData';
+import type { Payment, Program, Student, Teacher } from '../types';
+import { MONTH_NAMES, PROGRAMS, TEACHERS, formatCurrency, formatDate } from '../data/mockData';
 
 export type PdfReportType = 'Data Murid' | 'Data Guru' | 'Keuangan Bulanan' | 'Keuangan Tahunan';
 
@@ -177,10 +177,10 @@ function openPrintWindow(options: ReportOptions) {
   return true;
 }
 
-export function printStudentReport(students: Student[], printSettings?: Partial<PdfPrintSettings>) {
+export function printStudentReport(students: Student[], printSettings?: Partial<PdfPrintSettings>, programs: Program[] = PROGRAMS, teachers: Teacher[] = TEACHERS) {
   const rows = students.map((student, index) => {
-    const program = getProgramById(student.programId);
-    const teacher = TEACHERS.find((item) => item.id === student.teacherId);
+    const program = programs.find((item) => item.id === student.programId);
+    const teacher = teachers.find((item) => item.id === student.teacherId);
     const schedules = student.schedules.map((schedule) => `${schedule.day.slice(0, 3)} ${schedule.time}`).join(', ') || '-';
     return [String(index + 1), `<strong>${escapeHtml(student.fullName)}</strong><small>${escapeHtml(student.id)}</small>`, escapeHtml(student.parentName), `<strong>${escapeHtml(program?.name ?? '-')}</strong><small>${formatCurrency(program?.price ?? 0)}/bulan</small>`, escapeHtml(teacher?.fullName ?? '-'), escapeHtml(student.phone), escapeHtml(schedules), escapeHtml(formatDate(student.joinDate)), `<span class="status ${student.status === 'active' ? 'success' : 'danger'}">${student.status === 'active' ? 'Aktif' : 'Off'}</span>`];
   });
@@ -192,19 +192,19 @@ export function printTeacherReport(teachers: Teacher[], printSettings?: Partial<
   return openPrintWindow({ title: 'Laporan Data Guru', subtitle: 'Profil dan status tenaga pengajar EdGLO', period: 'Seluruh data', documentCode: reportNumber('EDGLO/GRU'), summary: [{ label: 'Total Guru', value: String(teachers.length) }, { label: 'Guru Aktif', value: String(teachers.filter((item) => item.status === 'active').length) }, { label: 'Fulltime', value: String(teachers.filter((item) => item.status === 'active' && item.employmentType === 'fulltime').length) }, { label: 'Part Time & Magang', value: String(teachers.filter((item) => item.status === 'active' && item.employmentType !== 'fulltime').length) }], table: `<div class="section-title"><h2>Daftar Guru</h2><span>${teachers.length} data</span></div>${reportTable(['No.', 'Guru', 'Kontak', 'Pendidikan', 'Status Kerja', 'Tgl Masuk', 'Tgl Off', 'Status'], rows)}`, printSettings });
 }
 
-export function printMonthlyFinanceReport(payments: Payment[], students: Student[], month: number, year: number, printSettings?: Partial<PdfPrintSettings>) {
+export function printMonthlyFinanceReport(payments: Payment[], students: Student[], month: number, year: number, printSettings?: Partial<PdfPrintSettings>, programs: Program[] = PROGRAMS) {
   const selected = payments.filter((payment) => payment.month === month && payment.year === year);
   const billed = selected.reduce((sum, item) => sum + item.total, 0);
   const paid = selected.filter((item) => item.status === 'paid').reduce((sum, item) => sum + item.total, 0);
   const rows = selected.map((payment, index) => {
     const student = students.find((item) => item.id === payment.studentId);
-    const program = student ? getProgramById(student.programId) : undefined;
+    const program = student ? programs.find((item) => item.id === student.programId) : undefined;
     return [String(index + 1), `<strong>${escapeHtml(student?.fullName ?? '-')}</strong><small>${escapeHtml(student?.parentName ?? '-')}</small>`, escapeHtml(program?.name ?? '-'), escapeHtml(formatDate(payment.dueDate)), formatCurrency(payment.programFee), payment.registrationFee ? formatCurrency(payment.registrationFee) : '-', payment.bookFee ? formatCurrency(payment.bookFee) : '-', `<strong>${formatCurrency(payment.total)}</strong>`, `<span class="status ${paymentStatusClass(payment.status)}">${statusLabel(payment.status)}</span>`];
   });
   return openPrintWindow({ title: 'Rekap Keuangan Bulanan', subtitle: 'Rincian tagihan dan penerimaan murid', period: `${MONTH_NAMES[month - 1]} ${year}`, documentCode: reportNumber('EDGLO/KEU-BLN'), summary: [{ label: 'Total Tagihan', value: formatCurrency(billed), note: `${selected.length} tagihan` }, { label: 'Sudah Diterima', value: formatCurrency(paid), note: `${selected.filter((item) => item.status === 'paid').length} lunas` }, { label: 'Piutang', value: formatCurrency(billed - paid), note: `${selected.filter((item) => item.status !== 'paid').length} belum lunas` }, { label: 'Tingkat Tertagih', value: `${billed ? Math.round((paid / billed) * 100) : 0}%` }], table: `<div class="section-title"><h2>Rincian Keuangan</h2><span>${selected.length} transaksi</span></div>${reportTable(['No.', 'Murid', 'Program', 'Jatuh Tempo', 'Les', 'Daftar', 'Buku', 'Total', 'Status'], rows, [4, 5, 6, 7])}`, notes: 'Tagihan berstatus menunggu atau terlambat dicatat sebagai piutang sampai pembayaran diterima.', printSettings });
 }
 
-export function printYearlyFinanceReport(payments: Payment[], year: number, printSettings?: Partial<PdfPrintSettings>) {
+export function printYearlyFinanceReport(payments: Payment[], year: number, printSettings?: Partial<PdfPrintSettings>, programs: Program[] = PROGRAMS) {
   const yearPayments = payments.filter((payment) => payment.year === year);
   const rows = MONTH_NAMES.map((name, index) => {
     const monthPayments = yearPayments.filter((payment) => payment.month === index + 1);
@@ -214,20 +214,20 @@ export function printYearlyFinanceReport(payments: Payment[], year: number, prin
   });
   const billed = yearPayments.reduce((sum, item) => sum + item.total, 0);
   const paid = yearPayments.filter((item) => item.status === 'paid').reduce((sum, item) => sum + item.total, 0);
-  const activePrograms = PROGRAMS.filter((program) => yearPayments.some((payment) => payment.programFee === program.price)).length;
+  const activePrograms = programs.filter((program) => yearPayments.some((payment) => payment.programFee === program.price)).length;
   return openPrintWindow({ title: 'Rekap Keuangan Tahunan', subtitle: 'Performa tagihan dan penerimaan per bulan', period: String(year), documentCode: reportNumber('EDGLO/KEU-THN'), summary: [{ label: 'Total Ditagihkan', value: formatCurrency(billed), note: `${yearPayments.length} tagihan` }, { label: 'Total Diterima', value: formatCurrency(paid) }, { label: 'Total Piutang', value: formatCurrency(billed - paid) }, { label: 'Program Tercatat', value: String(activePrograms) }], table: `<div class="section-title"><h2>Rekap Bulanan</h2><span>Januari - Desember ${year}</span></div>${reportTable(['No.', 'Bulan', 'Tagihan', 'Ditagihkan', 'Diterima', 'Piutang', 'Tertagih'], rows, [2, 3, 4, 5, 6])}`, printSettings });
 }
 
-export function printInvoiceReport(payment: Payment, students: Student[]) {
+export function printInvoiceReport(payment: Payment, students: Student[], programs: Program[] = PROGRAMS) {
   const student = students.find((item) => item.id === payment.studentId);
-  const program = student ? getProgramById(student.programId) : undefined;
+  const program = student ? programs.find((item) => item.id === student.programId) : undefined;
   const lines = [`<div class="invoice-line"><span>Biaya ${escapeHtml(program?.name ?? 'program')}</span><strong>${formatCurrency(payment.programFee)}</strong></div>`, payment.registrationFee ? `<div class="invoice-line"><span>Biaya pendaftaran</span><strong>${formatCurrency(payment.registrationFee)}</strong></div>` : '', payment.bookFee ? `<div class="invoice-line"><span>Biaya buku</span><strong>${formatCurrency(payment.bookFee)}</strong></div>` : '', `<div class="invoice-line total"><span>Total Tagihan</span><strong>${formatCurrency(payment.total)}</strong></div>`].join('');
   return openPrintWindow({ title: 'Tagihan Pembayaran', subtitle: `Nomor ${escapeHtml(payment.id)}`, period: `${MONTH_NAMES[payment.month - 1]} ${payment.year}`, documentCode: reportNumber('EDGLO/INV'), orientation: 'portrait', summary: [], table: `<section class="invoice-hero"><div><span>Ditagihkan Kepada</span><strong>${escapeHtml(student?.fullName ?? '-')}</strong><small>Orang tua: ${escapeHtml(student?.parentName ?? '-')} | ${escapeHtml(student?.phone ?? '-')}</small></div><div class="invoice-total"><span>Status</span><strong>${statusLabel(payment.status)}</strong><small>Jatuh tempo ${escapeHtml(formatDate(payment.dueDate))}</small></div></section><div class="invoice-lines">${lines}</div><div class="period-strip"><div><span>Program</span><strong>${escapeHtml(program?.name ?? '-')}</strong></div><small>${payment.paidDate ? `Dibayar ${escapeHtml(formatDate(payment.paidDate))}` : 'Belum tercatat sebagai lunas'}</small></div>`, notes: payment.notes || 'Pembayaran dicatat secara manual oleh admin EdGLO.' });
 }
 
-export function printPdfReport(type: PdfReportType, data: { students: Student[]; payments: Payment[]; teachers?: Teacher[]; month: number; year: number }, printSettings?: Partial<PdfPrintSettings>) {
-  if (type === 'Data Murid') return printStudentReport(data.students, printSettings);
+export function printPdfReport(type: PdfReportType, data: { students: Student[]; payments: Payment[]; teachers?: Teacher[]; programs?: Program[]; month: number; year: number }, printSettings?: Partial<PdfPrintSettings>) {
+  if (type === 'Data Murid') return printStudentReport(data.students, printSettings, data.programs ?? PROGRAMS, data.teachers ?? TEACHERS);
   if (type === 'Data Guru') return printTeacherReport(data.teachers ?? TEACHERS, printSettings);
-  if (type === 'Keuangan Bulanan') return printMonthlyFinanceReport(data.payments, data.students, data.month, data.year, printSettings);
-  return printYearlyFinanceReport(data.payments, data.year, printSettings);
+  if (type === 'Keuangan Bulanan') return printMonthlyFinanceReport(data.payments, data.students, data.month, data.year, printSettings, data.programs ?? PROGRAMS);
+  return printYearlyFinanceReport(data.payments, data.year, printSettings, data.programs ?? PROGRAMS);
 }

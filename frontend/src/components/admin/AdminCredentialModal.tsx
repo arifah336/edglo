@@ -62,8 +62,8 @@ export default function AdminCredentialModal({ admin, admins, onClose, onSave }:
       setError('Password wajib dibuat untuk admin baru.');
       return;
     }
-    if (password && (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password))) {
-      setError('Password minimal 8 karakter dan harus memiliki huruf serta angka.');
+    if (password && password.length < 8) {
+      setError('Password minimal 8 karakter.');
       return;
     }
     if (password !== confirmation) {
@@ -109,7 +109,7 @@ export default function AdminCredentialModal({ admin, admins, onClose, onSave }:
 
         {error && <div className="admin-form-error">{error}</div>}
 
-        <div className="admin-credential-actions"><span>Password diproses secara aman oleh backend Laravel.</span><div><button type="button" className="btn-secondary" onClick={onClose}>Batal</button><button type="submit" className="btn-primary">{admin ? 'Simpan Perubahan' : 'Buat Akun Admin'}</button></div></div>
+        <div className="admin-credential-actions"><div><button type="button" className="btn-secondary" onClick={onClose}>Batal</button><button type="submit" className="btn-primary">{admin ? 'Simpan Perubahan' : 'Buat Akun Admin'}</button></div></div>
       </form>
     </div>
   );

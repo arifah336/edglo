@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import type { ClassSession, Student, Teacher } from '../../types';
-import { getProgramById } from '../../data/mockData';
+import type { ClassSession, Program, Student, Teacher } from '../../types';
 import DataPagination from '../ui/DataPagination';
 
 type Props = {
   sessions: ClassSession[];
   students: Student[];
   teachers: Teacher[];
+  programs: Program[];
   onEdit: (session: ClassSession) => void;
   onDelete: (session: ClassSession) => void;
 };
 
-export default function ScheduleTable({ sessions, students, teachers, onEdit, onDelete }: Props) {
+export default function ScheduleTable({ sessions, students, teachers, programs, onEdit, onDelete }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const totalPages = Math.max(1, Math.ceil(sessions.length / pageSize));
@@ -32,7 +32,7 @@ export default function ScheduleTable({ sessions, students, teachers, onEdit, on
             {visibleSessions.length === 0 && <tr><td colSpan={8} className="schedule-table-empty">Belum ada kelas yang sesuai dengan filter.</td></tr>}
             {visibleSessions.map((session, rowIndex) => {
               const teacher = teachers.find((item) => item.id === session.teacherId);
-              const program = getProgramById(session.programId);
+              const program = programs.find((item) => item.id === session.programId);
               const classStudents = session.studentIds.map((id) => students.find((student) => student.id === id)).filter((student): student is Student => Boolean(student));
               const fullness = Math.min((session.studentIds.length / Math.max(session.capacity, 1)) * 100, 100);
               const isFull = session.studentIds.length >= session.capacity;

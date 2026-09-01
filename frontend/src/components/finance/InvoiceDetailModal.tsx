@@ -1,13 +1,13 @@
-import type { Payment, Student } from '../../types';
-import { MONTH_NAMES, TODAY, formatCurrency, formatDate, getProgramById } from '../../data/mockData';
+import type { Payment, Program, Student } from '../../types';
+import { MONTH_NAMES, TODAY, formatCurrency, formatDate } from '../../data/mockData';
 import { getPaymentDueState } from '../../lib/paymentDue';
 import { invoiceNumber } from './PaymentTable';
 
-type Props = { payment: Payment; students: Student[]; onClose: () => void; onPrint: () => void; onMarkPaid: () => void };
+type Props = { payment: Payment; students: Student[]; programs: Program[]; onClose: () => void; onPrint: () => void; onMarkPaid: () => void };
 
-export default function InvoiceDetailModal({ payment, students, onClose, onPrint, onMarkPaid }: Props) {
+export default function InvoiceDetailModal({ payment, students, programs, onClose, onPrint, onMarkPaid }: Props) {
   const student = students.find((item) => item.id === payment.studentId);
-  const program = student ? getProgramById(student.programId) : undefined;
+  const program = student ? programs.find((item) => item.id === student.programId) : undefined;
   const dueState = getPaymentDueState(payment, TODAY);
 
   return (

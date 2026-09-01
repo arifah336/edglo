@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BootstrapController;
 use App\Http\Controllers\Api\ClassSessionController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\PaymentController;
@@ -15,6 +16,7 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('bootstrap', BootstrapController::class);
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::patch('auth/profile', [AuthController::class, 'updateProfile']);
         Route::put('auth/password', [AuthController::class, 'updatePassword']);

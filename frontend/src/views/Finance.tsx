@@ -84,8 +84,8 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
 
   const printFinanceReport = () => {
     const opened = mode === 'monthly'
-      ? printMonthlyFinanceReport(filtered, students, selectedMonth, selectedYear)
-      : printYearlyFinanceReport(filtered, selectedYear);
+      ? printMonthlyFinanceReport(filtered, students, selectedMonth, selectedYear, undefined, programs)
+      : printYearlyFinanceReport(filtered, selectedYear, undefined, programs);
     notifyPrintResult(opened, mode === 'monthly' ? 'Rekap bulanan' : 'Rekap tahunan');
   };
 
@@ -113,11 +113,11 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
         <span className="toolbar-count">{filtered.length} data</span>
       </div>
 
-      <PaymentTable payments={visiblePayments} students={students} mode={mode} onView={setSelectedPayment} onMarkPaid={markPaid} startIndex={pageStart} />
+      <PaymentTable payments={visiblePayments} students={students} programs={programs} mode={mode} onView={setSelectedPayment} onMarkPaid={markPaid} startIndex={pageStart} />
       <DataPagination totalItems={filtered.length} page={safePage} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} label="tagihan" />
 
-      {showCreate && <InvoiceModal students={students} initialMonth={selectedMonth} initialYear={selectedYear} onClose={() => setShowCreate(false)} onCreate={createInvoice} />}
-      {selectedPayment && <InvoiceDetailModal payment={selectedPayment} students={students} onClose={() => setSelectedPayment(null)} onPrint={() => notifyPrintResult(printInvoiceReport(selectedPayment, students), 'Tagihan')} onMarkPaid={() => markPaid(selectedPayment)} />}
+      {showCreate && <InvoiceModal students={students} programs={programs} initialMonth={selectedMonth} initialYear={selectedYear} onClose={() => setShowCreate(false)} onCreate={createInvoice} />}
+      {selectedPayment && <InvoiceDetailModal payment={selectedPayment} students={students} programs={programs} onClose={() => setSelectedPayment(null)} onPrint={() => notifyPrintResult(printInvoiceReport(selectedPayment, students, programs), 'Tagihan')} onMarkPaid={() => markPaid(selectedPayment)} />}
     </div>
   );
 }

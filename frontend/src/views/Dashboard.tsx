@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   MONTH_NAMES,
   PAYMENTS,
@@ -24,7 +24,14 @@ const todayMonth = today.getMonth() + 1;
 const todayYear = today.getFullYear();
 const previousMonthDate = new Date(todayYear, todayMonth - 2, 1);
 
-type ChartMonth = { label: string; fullLabel: string; value: number };
+type ChartMonth = {
+  label: string;
+  fullLabel: string;
+  value: number;
+  billed: number;
+  paidCount: number;
+  totalCount: number;
+};
 
 const programColors = ['#1687A7', '#1EB980', '#FFB020', '#6C63D9', '#E45D79', '#5B8DEF'];
 
@@ -85,6 +92,7 @@ function MetricCard({
 }
 
 function RevenueChart({ data }: { data: ChartMonth[] }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const width = 680;
   const height = 230;
   const left = 38;
@@ -103,10 +111,19 @@ function RevenueChart({ data }: { data: ChartMonth[] }) {
   const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${top + chartHeight} L ${points[0].x} ${top + chartHeight} Z`;
   const gridValues = [1, 0.75, 0.5, 0.25, 0];
+  const activePoint = activeIndex === null ? null : points[activeIndex];
+  const previousValue = activeIndex !== null && activeIndex > 0 ? points[activeIndex - 1].value : 0;
+  const growth = activePoint && previousValue > 0
+    ? Math.round(((activePoint.value - previousValue) / previousValue) * 100)
+    : null;
+  const collectionRate = activePoint?.totalCount
+    ? Math.round((activePoint.paidCount / activePoint.totalCount) * 100)
+    : 0;
+  const hitWidth = chartWidth / Math.max(data.length - 1, 1);
 
   return (
-    <div className="revenue-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Grafik pemasukan enam bulan terakhir">
+    <div className="revenue-chart" onPointerLeave={() => setActiveIndex(null)}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Grafik pemasukan enam bulan terakhir. Sorot bulan untuk melihat rincian.">
         <defs>
           <linearGradient id="revenueArea" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#1687A7" stopOpacity="0.22" />
@@ -126,15 +143,53 @@ function RevenueChart({ data }: { data: ChartMonth[] }) {
         })}
         <path d={areaPath} fill="url(#revenueArea)" />
         <path d={linePath} fill="none" stroke="#1687A7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {points.map((point) => (
-          <g key={point.fullLabel}>
-            <circle cx={point.x} cy={point.y} r="6" fill="#ffffff" stroke="#1687A7" strokeWidth="3" />
+        {activePoint && (
+          <line className="chart-crosshair" x1={activePoint.x} y1={top} x2={activePoint.x} y2={top + chartHeight} />
+        )}
+        {points.map((point, index) => (
+          <g key={point.fullLabel} className={activeIndex === index ? 'active' : undefined}>
+            <rect
+              className="chart-hit-zone"
+              x={Math.max(left, point.x - hitWidth / 2)}
+              y={top}
+              width={index === 0 || index === points.length - 1 ? hitWidth / 2 : hitWidth}
+              height={chartHeight}
+              onPointerEnter={() => setActiveIndex(index)}
+              onPointerDown={() => setActiveIndex(index)}
+            />
+            {activeIndex === index && <circle className="chart-point-halo" cx={point.x} cy={point.y} r="12" />}
+            <circle
+              className="chart-data-point"
+              cx={point.x}
+              cy={point.y}
+              r={activeIndex === index ? 7 : 6}
+              tabIndex={0}
+              role="button"
+              aria-label={`${point.fullLabel}: ${formatCurrency(point.value)}, ${point.paidCount} pembayaran lunas`}
+              onFocus={() => setActiveIndex(index)}
+              onBlur={() => setActiveIndex(null)}
+              onClick={() => setActiveIndex(index)}
+            />
             <text x={point.x} y={height - 10} textAnchor="middle" className="chart-month-text">
               {point.label}
             </text>
           </g>
         ))}
       </svg>
+      {activePoint && (
+        <div
+          className={`revenue-chart-tooltip${activeIndex === 0 ? ' edge-start' : activeIndex === points.length - 1 ? ' edge-end' : ''}${activePoint.y < 78 ? ' below' : ''}`}
+          style={{ left: `${(activePoint.x / width) * 100}%`, top: `${(activePoint.y / height) * 100}%` }}
+          role="status"
+        >
+          <div className="chart-tooltip-head"><strong>{activePoint.fullLabel}</strong><span>{growth === null ? 'Awal periode' : `${growth >= 0 ? '+' : ''}${growth}%`}</span></div>
+          <div className="chart-tooltip-primary"><span>Pemasukan diterima</span><strong>{formatCurrency(activePoint.value)}</strong></div>
+          <div className="chart-tooltip-row"><span>Pembayaran lunas</span><b>{activePoint.paidCount} dari {activePoint.totalCount}</b></div>
+          <div className="chart-tooltip-row"><span>Tingkat penagihan</span><b>{collectionRate}%</b></div>
+          <div className="chart-tooltip-progress"><i style={{ width: `${collectionRate}%` }} /></div>
+          <small>Total ditagihkan {formatCurrency(activePoint.billed)}</small>
+        </div>
+      )}
     </div>
   );
 }
@@ -167,6 +222,8 @@ function PaymentReminder({ payment, students, programs }: { payment: Payment; st
 }
 
 export default function Dashboard({ onNavigate, students = STUDENTS, teachers = TEACHERS, payments = PAYMENTS, programs = PROGRAMS }: Props) {
+  const [chartRange, setChartRange] = useState<6 | 12>(6);
+  const [chartYear, setChartYear] = useState(todayYear);
   const activeStudents = students.filter((student) => student.status === 'active');
   const activeTeachers = teachers.filter((teacher) => teacher.status === 'active');
   const thisMonthPayments = payments.filter((payment) => payment.month === todayMonth && payment.year === todayYear);
@@ -178,10 +235,40 @@ export default function Dashboard({ onNavigate, students = STUDENTS, teachers = 
   const previousMonthPaid = payments.filter((payment) => payment.month === previousMonthDate.getMonth() + 1 && payment.year === previousMonthDate.getFullYear() && payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
   const incomeGrowth = previousMonthPaid > 0 ? Math.round(((paidThisMonth - previousMonthPaid) / previousMonthPaid) * 100) : 0;
   const collectionRate = thisMonthPayments.length ? Math.round((thisMonthPayments.filter((payment) => payment.status === 'paid').length / thisMonthPayments.length) * 100) : 0;
-  const chartMonths = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(todayYear, todayMonth - 6 + index, 1);
-    return { label: MONTH_NAMES[date.getMonth()].slice(0, 3), fullLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`, value: payments.filter((payment) => payment.month === date.getMonth() + 1 && payment.year === date.getFullYear() && payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0) };
+  const availableChartYears = Array.from(new Set([
+    todayYear,
+    todayYear - 1,
+    todayYear - 2,
+    ...payments.map((payment) => payment.year),
+  ])).sort((a, b) => b - a);
+  const chartEndMonth = chartRange === 12 ? 11 : chartYear === todayYear ? todayMonth - 1 : 11;
+  const chartMonths = Array.from({ length: chartRange }, (_, index) => {
+    const date = new Date(chartYear, chartEndMonth - (chartRange - 1 - index), 1);
+    const monthPayments = payments.filter((payment) => payment.month === date.getMonth() + 1 && payment.year === date.getFullYear());
+    const paidPayments = monthPayments.filter((payment) => payment.status === 'paid');
+    return {
+      label: MONTH_NAMES[date.getMonth()].slice(0, 3),
+      fullLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`,
+      value: paidPayments.reduce((sum, payment) => sum + payment.total, 0),
+      billed: monthPayments.reduce((sum, payment) => sum + payment.total, 0),
+      paidCount: paidPayments.length,
+      totalCount: monthPayments.length,
+    };
   });
+  const chartPaidTotal = chartMonths.reduce((sum, month) => sum + month.value, 0);
+  const chartBilledTotal = chartMonths.reduce((sum, month) => sum + month.billed, 0);
+  const chartPaidCount = chartMonths.reduce((sum, month) => sum + month.paidCount, 0);
+  const chartPaymentCount = chartMonths.reduce((sum, month) => sum + month.totalCount, 0);
+  const chartCollectionRate = chartPaymentCount ? Math.round((chartPaidCount / chartPaymentCount) * 100) : 0;
+  const chartPeriodLabel = chartRange === 12
+    ? `Januari - Desember ${chartYear}`
+    : `${chartMonths[0].fullLabel} - ${chartMonths[chartMonths.length - 1].fullLabel}`;
+  const bestChartMonth = chartMonths.reduce((best, month) => month.value > best.value ? month : best, chartMonths[0]);
+  const chartOutstanding = Math.max(chartBilledTotal - chartPaidTotal, 0);
+  const chartStartValue = chartMonths[0].value;
+  const chartEndValue = chartMonths[chartMonths.length - 1].value;
+  const chartGrowth = chartStartValue > 0 ? Math.round(((chartEndValue - chartStartValue) / chartStartValue) * 100) : null;
+  const collectionHealth = chartCollectionRate >= 85 ? 'Sehat' : chartCollectionRate >= 70 ? 'Perlu dipantau' : 'Perlu ditindaklanjuti';
   const programStats = programs.map((program) => ({ ...program, count: activeStudents.filter((student) => student.programId === program.id).length })).filter((program) => program.count > 0).sort((a, b) => b.count - a.count);
   const reminders = [...dueTodayPayments, ...overduePayments]
     .filter((payment, index, list) => list.findIndex((item) => item.id === payment.id) === index)
@@ -255,25 +342,74 @@ export default function Dashboard({ onNavigate, students = STUDENTS, teachers = 
       </section>
 
       <section className="dashboard-analytics-grid">
-        <article className="dashboard-panel revenue-panel">
+        <div className="dashboard-analytics-main">
+          <article className="dashboard-panel revenue-panel">
           <div className="panel-header">
             <div>
               <span className="panel-kicker">PERFORMA KEUANGAN</span>
               <h3>Tren Pemasukan</h3>
-              <p>Enam bulan terakhir berdasarkan pembayaran lunas</p>
+              <p>{chartPeriodLabel} berdasarkan pembayaran lunas</p>
             </div>
-            <div className="panel-value">
-              <strong>{formatCurrency(paidThisMonth)}</strong>
-              <span>{MONTH_NAMES[todayMonth - 1]} {todayYear}</span>
+            <div className="chart-header-tools">
+              <div className="chart-filter-controls">
+                <div className="chart-range-switch" role="group" aria-label="Periode grafik">
+                  <button type="button" className={chartRange === 6 ? 'active' : ''} onClick={() => setChartRange(6)}>6 Bulan</button>
+                  <button type="button" className={chartRange === 12 ? 'active' : ''} onClick={() => setChartRange(12)}>1 Tahun</button>
+                </div>
+                <select aria-label="Tahun grafik" value={chartYear} onChange={(event) => setChartYear(Number(event.target.value))}>
+                  {availableChartYears.map((year) => <option key={year} value={year}>{year}</option>)}
+                </select>
+              </div>
+              <div className="panel-value">
+                <strong>{formatCurrency(chartPaidTotal)}</strong>
+                <span>Total periode terpilih</span>
+              </div>
             </div>
           </div>
           <RevenueChart data={chartMonths} />
           <div className="chart-summary">
-            <div><span className="summary-dot teal" /><span>Sudah diterima</span><strong>{collectionRate}%</strong></div>
-            <div><span className="summary-dot yellow" /><span>Belum terbayar</span><strong>{thisMonthPayments.length - thisMonthPayments.filter((payment) => payment.status === 'paid').length}</strong></div>
-            <div><span className="summary-dot blue" /><span>Rata-rata tagihan</span><strong>{compactCurrency(thisMonthPayments.reduce((sum, payment) => sum + payment.total, 0) / Math.max(thisMonthPayments.length, 1))}</strong></div>
+            <div><span className="summary-dot teal" /><span>Sudah diterima</span><strong>{chartCollectionRate}%</strong></div>
+            <div><span className="summary-dot yellow" /><span>Belum terbayar</span><strong>{chartPaymentCount - chartPaidCount}</strong></div>
+            <div><span className="summary-dot blue" /><span>Rata-rata tagihan</span><strong>{compactCurrency(chartBilledTotal / Math.max(chartPaymentCount, 1))}</strong></div>
           </div>
-        </article>
+          </article>
+
+          <article className="dashboard-panel financial-insight-panel">
+            <div className="financial-insight-heading">
+              <div>
+                <span className="panel-kicker">RINGKASAN PERIODE</span>
+                <h3>Insight Keuangan</h3>
+              </div>
+              <span>{chartPeriodLabel}</span>
+            </div>
+            <div className="financial-insight-grid">
+              <div className="financial-insight-item">
+                <span>Bulan terbaik</span>
+                <strong>{bestChartMonth.fullLabel}</strong>
+                <small>{formatCurrency(bestChartMonth.value)} diterima</small>
+              </div>
+              <div className="financial-insight-item">
+                <span>Piutang periode</span>
+                <strong>{formatCurrency(chartOutstanding)}</strong>
+                <small>{chartPaymentCount - chartPaidCount} pembayaran belum lunas</small>
+              </div>
+              <div className="financial-insight-item">
+                <span>Perubahan pemasukan</span>
+                <strong className={chartGrowth !== null && chartGrowth < 0 ? 'negative' : 'positive'}>{chartGrowth === null ? '-' : `${chartGrowth >= 0 ? '+' : ''}${chartGrowth}%`}</strong>
+                <small>Dari awal ke akhir periode</small>
+              </div>
+              <div className="financial-health-item">
+                <div><span>Kesehatan penagihan</span><strong>{collectionHealth}</strong></div>
+                <div className="financial-health-track"><i style={{ width: `${chartCollectionRate}%` }} /></div>
+                <small>{chartCollectionRate}% tagihan berhasil diterima</small>
+              </div>
+              <button type="button" className="financial-insight-action" onClick={() => onNavigate('finance-monthly')}>
+                Buka keuangan
+                <DashboardIcon size={16}><path d="m9 18 6-6-6-6" /></DashboardIcon>
+              </button>
+            </div>
+          </article>
+        </div>
 
         <article className="dashboard-panel program-panel">
           <div className="panel-header compact">

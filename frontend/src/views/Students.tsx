@@ -54,7 +54,7 @@ function StudentList({ onNavigate, students, teachers, programs }: { onNavigate:
           <h2>Kelola murid dengan lebih mudah</h2>
           <p>Pantau program, guru, jadwal, dan status murid dalam satu tampilan.</p>
         </div>
-        <div className="student-heading-actions"><button type="button" className="btn-secondary" onClick={() => { const opened = printStudentReport(filtered); notify(opened ? { tone: 'info', title: 'Laporan murid siap', message: 'Pilih Save as PDF pada dialog cetak.' } : { tone: 'warning', title: 'Popup diblokir', message: 'Izinkan popup browser lalu coba kembali.' }); }}>Cetak PDF</button><button className="btn-primary student-add-button" onClick={() => onNavigate('student-form')}>
+        <div className="student-heading-actions"><button type="button" className="btn-secondary" onClick={() => { const opened = printStudentReport(filtered, undefined, programs, teachers); notify(opened ? { tone: 'info', title: 'Laporan murid siap', message: 'Pilih Save as PDF pada dialog cetak.' } : { tone: 'warning', title: 'Popup diblokir', message: 'Izinkan popup browser lalu coba kembali.' }); }}>Cetak PDF</button><button className="btn-primary student-add-button" onClick={() => onNavigate('student-form')}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
           </svg>

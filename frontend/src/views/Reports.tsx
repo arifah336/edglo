@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import type { Payment, Student, Teacher } from '../types';
-import { MONTH_NAMES, PAYMENTS, STUDENTS, TEACHERS, formatCurrency } from '../data/mockData';
+import type { Payment, Program, Student, Teacher } from '../types';
+import { MONTH_NAMES, PAYMENTS, PROGRAMS, STUDENTS, TEACHERS, formatCurrency } from '../data/mockData';
 import ProgramSummaryTable from '../components/reports/ProgramSummaryTable';
 import { useToast } from '../components/ui/ToastProvider';
 import DataPagination from '../components/ui/DataPagination';
@@ -8,7 +8,7 @@ import { DEFAULT_PDF_SETTINGS, printPdfReport, type PdfPrintSettings, type PdfRe
 
 type ReportLog = { id: number; type: PdfReportType; period: string; createdAt: string; status: 'Siap'; month?: number; year?: number };
 type PrintRequest = { type: PdfReportType; month: number; year: number; archive: boolean };
-type Props = { students?: Student[]; teachers?: Teacher[]; payments?: Payment[] };
+type Props = { students?: Student[]; teachers?: Teacher[]; programs?: Program[]; payments?: Payment[] };
 
 const REPORTS: Array<{ type: PdfReportType; description: string; tone: string; icon: ReactNode }> = [
   { type: 'Data Murid', description: 'Daftar murid, orang tua, program, guru, status, dan jadwal belajar.', tone: 'teal', icon: 'MU' },
@@ -17,7 +17,7 @@ const REPORTS: Array<{ type: PdfReportType; description: string; tone: string; i
   { type: 'Keuangan Tahunan', description: 'Rekap pemasukan dan performa penagihan selama satu tahun.', tone: 'yellow', icon: 'TH' },
 ];
 
-export default function Reports({ students = STUDENTS, teachers = TEACHERS, payments = PAYMENTS }: Props) {
+export default function Reports({ students = STUDENTS, teachers = TEACHERS, programs = PROGRAMS, payments = PAYMENTS }: Props) {
   const { notify } = useToast();
   const [month, setMonth] = useState(7);
   const [year, setYear] = useState(2026);
@@ -40,7 +40,7 @@ export default function Reports({ students = STUDENTS, teachers = TEACHERS, paym
   const visibleLogs = logs.slice(reportPageStart, reportPageStart + reportPageSize);
 
   const openReport = (type: PdfReportType, reportMonth = month, reportYear = year, settings = printSettings) => {
-    const opened = printPdfReport(type, { students, payments, teachers, month: reportMonth, year: reportYear }, settings);
+    const opened = printPdfReport(type, { students, payments, teachers, programs, month: reportMonth, year: reportYear }, settings);
     notify(opened
       ? { tone: 'info', title: 'Dokumen PDF disiapkan', message: 'Pilih Save as PDF pada dialog cetak untuk menyimpan dokumen.' }
       : { tone: 'warning', title: 'Popup diblokir browser', message: 'Izinkan popup untuk situs ini, lalu coba cetak kembali.' });
@@ -88,7 +88,7 @@ export default function Reports({ students = STUDENTS, teachers = TEACHERS, paym
 
       <div className="report-card-grid">{REPORTS.map((report) => <article className={`report-action-card report-${report.tone}`} key={report.type}><span className="report-card-icon">{report.icon}</span><div><h3>{report.type}</h3><p>{report.description}</p></div><button type="button" className="btn-primary" onClick={() => requestPrint(report.type)}>Atur & Cetak</button></article>)}</div>
 
-      <section className="report-section"><div className="section-heading"><div><span className="eyebrow">RINGKASAN PROGRAM</span><h3>Potensi pemasukan lembaga</h3></div></div><ProgramSummaryTable students={students} /></section>
+      <section className="report-section"><div className="section-heading"><div><span className="eyebrow">RINGKASAN PROGRAM</span><h3>Potensi pemasukan lembaga</h3></div></div><ProgramSummaryTable students={students} programs={programs} /></section>
 
       <section className="report-section"><div className="section-heading"><div><span className="eyebrow">RIWAYAT</span><h3>Laporan terbaru</h3></div><span>{logs.length} dokumen</span></div><div className="data-table-shell"><table className="data-table report-history-table"><thead><tr><th>Nama Laporan</th><th>Periode</th><th>Dibuat</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{visibleLogs.map((log, rowIndex) => <tr key={log.id}><td><div className="numbered-report"><span className="table-row-number">{reportPageStart + rowIndex + 1}</span><div><strong>{log.type}</strong><small>EdGLO Admin Panel</small></div></div></td><td>{log.period}</td><td>{log.createdAt}</td><td><span className="badge badge-active">{log.status}</span></td><td><button type="button" className="btn-secondary btn-sm" onClick={() => requestPrint(log.type, log.month ?? month, log.year ?? year, false)}>Atur & Cetak</button></td></tr>)}</tbody></table></div><DataPagination totalItems={logs.length} page={safeReportPage} pageSize={reportPageSize} onPageChange={setReportPage} onPageSizeChange={(size) => { setReportPageSize(size); setReportPage(1); }} label="laporan" /></section>
 

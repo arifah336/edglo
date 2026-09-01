@@ -410,7 +410,7 @@ export default function Schedule(props: Props = {}) {
         })}
       </div>}
 
-      {viewMode === 'list' && <ScheduleTable sessions={filteredSessions.slice().sort((a, b) => ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day) || timeToMinutes(a.time) - timeToMinutes(b.time))} students={students} teachers={activeTeachers} onEdit={openEdit} onDelete={setDeleteTarget} />}
+      {viewMode === 'list' && <ScheduleTable sessions={filteredSessions.slice().sort((a, b) => ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day) || timeToMinutes(a.time) - timeToMinutes(b.time))} students={students} teachers={activeTeachers} programs={programs} onEdit={openEdit} onDelete={setDeleteTarget} />}
 
       <section className="teacher-workload-panel">
         <div className="teacher-workload-header">

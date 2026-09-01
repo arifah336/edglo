@@ -1,10 +1,11 @@
-import type { Payment, Student } from '../../types';
-import { MONTH_NAMES, TODAY, formatCurrency, formatDate, getProgramById } from '../../data/mockData';
+import type { Payment, Program, Student } from '../../types';
+import { MONTH_NAMES, TODAY, formatCurrency, formatDate } from '../../data/mockData';
 import { getPaymentDueState } from '../../lib/paymentDue';
 
 type Props = {
   payments: Payment[];
   students: Student[];
+  programs: Program[];
   mode: 'monthly' | 'yearly';
   onView: (payment: Payment) => void;
   onMarkPaid: (payment: Payment) => void;
@@ -15,7 +16,7 @@ export function invoiceNumber(payment: Payment) {
   return `INV/${payment.year}/${String(payment.month).padStart(2, '0')}/${payment.id.replace(/\D/g, '').padStart(4, '0')}`;
 }
 
-export default function PaymentTable({ payments, students, mode, onView, onMarkPaid, startIndex = 0 }: Props) {
+export default function PaymentTable({ payments, students, programs, mode, onView, onMarkPaid, startIndex = 0 }: Props) {
   return (
     <div className="data-table-shell finance-table-shell">
       <table className="data-table finance-table">
@@ -28,7 +29,7 @@ export default function PaymentTable({ payments, students, mode, onView, onMarkP
           {payments.length === 0 && <tr><td colSpan={7} className="empty-table-cell">Tidak ada tagihan pada filter ini.</td></tr>}
           {payments.map((payment, rowIndex) => {
             const student = students.find((item) => item.id === payment.studentId);
-            const program = student ? getProgramById(student.programId) : undefined;
+            const program = student ? programs.find((item) => item.id === student.programId) : undefined;
             const dueState = getPaymentDueState(payment, TODAY);
 
             return (
