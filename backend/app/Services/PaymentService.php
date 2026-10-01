@@ -26,8 +26,10 @@ class PaymentService
             $periodStart = Carbon::create($year, $month, 1);
             $joinPeriod = $student->join_date->copy()->startOfMonth();
             $monthsSinceJoining = (int) max(0, $joinPeriod->diffInMonths($periodStart, false));
-            $registrationFee = (int) ($attributes['registration_fee'] ?? ($isFirstInvoice ? self::REGISTRATION_FEE : 0));
-            $bookFee = (int) ($attributes['book_fee'] ?? ($monthsSinceJoining % 2 === 0 ? self::BOOK_FEE : 0));
+            $registrationFee = (int) ($attributes['registration_fee'] ?? ($isFirstInvoice ? $student->registration_fee : 0));
+            $bookFee = (int) ($attributes['book_fee'] ?? ($monthsSinceJoining % 2 === 0 ? $student->book_fee : 0));
+            $otherFee = (int) ($attributes['other_fee'] ?? ($isFirstInvoice ? $student->other_fee : 0));
+            $discount = (int) ($attributes['discount'] ?? ($isFirstInvoice ? $student->discount : 0));
             $paidDate = isset($attributes['paid_date']) ? Carbon::parse($attributes['paid_date']) : null;
             $status = $attributes['status'] ?? ($paidDate ? 'paid' : ($dueDate->isPast() ? 'overdue' : 'pending'));
             $id = $this->ids->next(Payment::class, 'PAY', 4);
@@ -41,7 +43,9 @@ class PaymentService
                 'program_fee' => $programFee,
                 'registration_fee' => $registrationFee,
                 'book_fee' => $bookFee,
-                'total' => $programFee + $registrationFee + $bookFee,
+                'other_fee' => $otherFee,
+                'discount' => $discount,
+                'total' => max(0, $programFee + $registrationFee + $bookFee + $otherFee - $discount),
                 'due_date' => $dueDate,
                 'paid_date' => $paidDate,
                 'status' => $status,

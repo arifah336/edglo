@@ -7,6 +7,8 @@ use App\Http\Requests\StudentRequest;
 use App\Http\Resources\StudentResource;
 use App\Models\Student;
 use App\Services\IdGenerator;
+use App\Services\PackageExpiryService;
+use App\Services\ProgramLevelService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,10 +16,15 @@ use Illuminate\Support\Facades\Storage;
 
 class StudentController extends Controller
 {
-    public function __construct(private readonly IdGenerator $ids) {}
+    public function __construct(
+        private readonly IdGenerator $ids,
+        private readonly ProgramLevelService $programLevels,
+        private readonly PackageExpiryService $packageExpiry,
+    ) {}
 
     public function index(Request $request)
     {
+        $this->packageExpiry->deactivateExpiredStudents();
         $query = Student::query()->with(['program', 'teacher', 'schedules', 'statusHistories']);
 
         if ($request->filled('search')) {
@@ -34,8 +41,18 @@ class StudentController extends Controller
         }
 
         $perPage = min(100, max(1, $request->integer('per_page', 10)));
+        $sort = match ($request->string('sort')->value()) {
+            'name' => 'full_name',
+            'join_date' => 'join_date',
+            default => 'id',
+        };
+        $direction = $request->string('direction')->lower()->value() === 'desc' ? 'desc' : 'asc';
+        $query->orderBy($sort, $direction);
+        if ($sort !== 'id') {
+            $query->orderBy('id');
+        }
 
-        return StudentResource::collection($query->orderBy('full_name')->paginate($perPage));
+        return StudentResource::collection($query->paginate($perPage));
     }
 
     public function store(StudentRequest $request): JsonResponse
@@ -46,6 +63,10 @@ class StudentController extends Controller
             unset($data['schedules'], $data['photo']);
             $data['id'] = $this->ids->next(Student::class, 'S', 3);
             $data['status'] = 'active';
+            $defaults = $this->programLevels->defaultsFor($data['program_id']);
+            $data['current_level'] ??= $defaults['current_level'];
+            $data['level_duration_months'] ??= $defaults['level_duration_months'];
+            $data['level_started_at'] ??= $data['join_date'];
             if ($request->hasFile('photo')) {
                 $data['photo'] = $request->file('photo')->store('students', 'public');
             }

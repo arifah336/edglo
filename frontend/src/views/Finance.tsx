@@ -10,7 +10,7 @@ import DataPagination from '../components/ui/DataPagination';
 import { printInvoiceReport, printMonthlyFinanceReport, printYearlyFinanceReport } from '../lib/pdfReports';
 import { getPaymentDueState } from '../lib/paymentDue';
 
-type Props = { mode: 'monthly' | 'yearly'; students?: Student[]; programs?: Program[]; payments?: Payment[]; onPaymentsChange?: (payments: Payment[]) => void };
+type Props = { mode: 'monthly' | 'yearly'; students?: Student[]; programs?: Program[]; payments?: Payment[]; onPaymentsChange?: (payments: Payment[]) => void; canManage?: boolean };
 const CURRENT_MONTH = 7;
 const CURRENT_YEAR = 2026;
 const PAYMENT_CLONE = PAYMENTS.map((payment) => ({ ...payment }));
@@ -20,7 +20,7 @@ function nextPaymentId(payments: Payment[]) {
   return `PAY${String(largest + 1).padStart(4, '0')}`;
 }
 
-export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS, payments: controlledPayments, onPaymentsChange }: Props) {
+export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS, payments: controlledPayments, onPaymentsChange, canManage = true }: Props) {
   const { notify } = useToast();
   const [fallbackPayments, setFallbackPayments] = useState(PAYMENT_CLONE);
   const payments = controlledPayments ?? fallbackPayments;
@@ -95,7 +95,7 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
     <div className="finance-page">
       <div className="module-heading">
         <div><span className="eyebrow">{mode === 'monthly' ? 'OPERASIONAL TAGIHAN' : 'REKAP TAHUNAN'}</span><h2>{mode === 'monthly' ? 'Kelola tagihan dan pembayaran' : 'Analisis keuangan tahunan'}</h2><p>{mode === 'monthly' ? 'Pantau jatuh tempo otomatis dan catat pembayaran murid.' : 'Bandingkan nilai tagihan dan pemasukan setiap bulan.'}</p></div>
-        <div className="module-actions"><button type="button" className="btn-secondary" onClick={printFinanceReport}>Cetak PDF</button>{mode === 'monthly' && <button type="button" className="btn-primary" onClick={() => setShowCreate(true)}>+ Buat Tagihan</button>}</div>
+        <div className="module-actions"><button type="button" className="btn-secondary" onClick={printFinanceReport}>Cetak PDF</button>{mode === 'monthly' && canManage && <button type="button" className="btn-primary" onClick={() => setShowCreate(true)}>+ Buat Tagihan</button>}</div>
       </div>
 
       <div className="finance-summary-grid">
@@ -113,11 +113,11 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
         <span className="toolbar-count">{filtered.length} data</span>
       </div>
 
-      <PaymentTable payments={visiblePayments} students={students} programs={programs} mode={mode} onView={setSelectedPayment} onMarkPaid={markPaid} startIndex={pageStart} />
+      <PaymentTable payments={visiblePayments} students={students} programs={programs} mode={mode} onView={setSelectedPayment} onMarkPaid={markPaid} startIndex={pageStart} canManage={canManage} />
       <DataPagination totalItems={filtered.length} page={safePage} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} label="tagihan" />
 
-      {showCreate && <InvoiceModal students={students} programs={programs} initialMonth={selectedMonth} initialYear={selectedYear} onClose={() => setShowCreate(false)} onCreate={createInvoice} />}
-      {selectedPayment && <InvoiceDetailModal payment={selectedPayment} students={students} programs={programs} onClose={() => setSelectedPayment(null)} onPrint={() => notifyPrintResult(printInvoiceReport(selectedPayment, students, programs), 'Tagihan')} onMarkPaid={() => markPaid(selectedPayment)} />}
+      {showCreate && canManage && <InvoiceModal students={students} programs={programs} initialMonth={selectedMonth} initialYear={selectedYear} onClose={() => setShowCreate(false)} onCreate={createInvoice} />}
+      {selectedPayment && <InvoiceDetailModal payment={selectedPayment} students={students} programs={programs} onClose={() => setSelectedPayment(null)} onPrint={() => notifyPrintResult(printInvoiceReport(selectedPayment, students, programs), 'Tagihan')} onMarkPaid={() => markPaid(selectedPayment)} canManage={canManage} />}
     </div>
   );
 }

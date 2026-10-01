@@ -14,14 +14,15 @@ class Payment extends Model
 
     protected $fillable = [
         'id', 'invoice_number', 'student_id', 'month', 'year', 'program_fee',
-        'registration_fee', 'book_fee', 'total', 'due_date', 'paid_date', 'status', 'notes', 'created_by',
+        'registration_fee', 'book_fee', 'other_fee', 'discount', 'total', 'due_date', 'paid_date', 'status', 'notes', 'created_by',
     ];
 
     protected function casts(): array
     {
         return [
             'month' => 'integer', 'year' => 'integer', 'program_fee' => 'integer',
-            'registration_fee' => 'integer', 'book_fee' => 'integer', 'total' => 'integer',
+            'registration_fee' => 'integer', 'book_fee' => 'integer', 'other_fee' => 'integer',
+            'discount' => 'integer', 'total' => 'integer',
             'due_date' => 'date', 'paid_date' => 'date',
         ];
     }

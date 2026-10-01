@@ -495,7 +495,7 @@ export default function Dashboard({ onNavigate, students = STUDENTS, teachers = 
                     <tr key={student.id}>
                       <td>
                         <div className="student-cell">
-                          <span className={`student-avatar avatar-${index % 5}`}>{student.fullName.charAt(0)}</span>
+                          <span className={`student-avatar avatar-${index % 5} ${student.photo ? 'has-photo' : ''}`} style={student.photo ? { backgroundImage: `url(${student.photo})` } : undefined}>{student.photo ? '' : student.fullName.charAt(0)}</span>
                           <div><strong>{student.fullName}</strong><span>{student.parentName}</span></div>
                         </div>
                       </td>

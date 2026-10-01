@@ -3,9 +3,9 @@ import { MONTH_NAMES, TODAY, formatCurrency, formatDate } from '../../data/mockD
 import { getPaymentDueState } from '../../lib/paymentDue';
 import { invoiceNumber } from './PaymentTable';
 
-type Props = { payment: Payment; students: Student[]; programs: Program[]; onClose: () => void; onPrint: () => void; onMarkPaid: () => void };
+type Props = { payment: Payment; students: Student[]; programs: Program[]; onClose: () => void; onPrint: () => void; onMarkPaid: () => void; canManage?: boolean };
 
-export default function InvoiceDetailModal({ payment, students, programs, onClose, onPrint, onMarkPaid }: Props) {
+export default function InvoiceDetailModal({ payment, students, programs, onClose, onPrint, onMarkPaid, canManage = true }: Props) {
   const student = students.find((item) => item.id === payment.studentId);
   const program = student ? programs.find((item) => item.id === student.programId) : undefined;
   const dueState = getPaymentDueState(payment, TODAY);
@@ -28,6 +28,8 @@ export default function InvoiceDetailModal({ payment, students, programs, onClos
           <div><span>Biaya {program?.name ?? 'program'}</span><strong>{formatCurrency(payment.programFee)}</strong></div>
           {payment.registrationFee > 0 && <div><span>Biaya pendaftaran</span><strong>{formatCurrency(payment.registrationFee)}</strong></div>}
           {payment.bookFee > 0 && <div><span>Biaya buku</span><strong>{formatCurrency(payment.bookFee)}</strong></div>}
+          {(payment.otherFee ?? 0) > 0 && <div><span>Biaya lainnya</span><strong>{formatCurrency(payment.otherFee ?? 0)}</strong></div>}
+          {(payment.discount ?? 0) > 0 && <div className="invoice-discount-line"><span>Diskon / promo</span><strong>-{formatCurrency(payment.discount ?? 0)}</strong></div>}
           <div className="invoice-grand-total"><span>Total</span><strong>{formatCurrency(payment.total)}</strong></div>
         </div>
         <div className="invoice-dates">
@@ -35,7 +37,7 @@ export default function InvoiceDetailModal({ payment, students, programs, onClos
           <div><span>Tanggal dibayar</span><strong>{payment.paidDate ? formatDate(payment.paidDate) : '-'}</strong></div>
         </div>
         {payment.notes && <p className="invoice-notes">{payment.notes}</p>}
-        <div className="modal-actions"><button type="button" className="btn-secondary" onClick={onPrint}>Cetak</button>{payment.status !== 'paid' && <button type="button" className="btn-primary" onClick={onMarkPaid}>Tandai Lunas</button>}</div>
+        <div className="modal-actions"><button type="button" className="btn-secondary" onClick={onPrint}>Cetak</button>{canManage && payment.status !== 'paid' && <button type="button" className="btn-primary" onClick={onMarkPaid}>Tandai Lunas</button>}</div>
       </div>
     </div>
   );

@@ -23,6 +23,7 @@ const DAY_THEME: Record<string, { color: string; soft: string; short: string }> 
 type ScheduleForm = Omit<ClassSession, 'id'>;
 
 type Props = {
+  canManage?: boolean;
   students?: Student[];
   sessions?: ClassSession[];
   onSessionsChange?: (sessions: ClassSession[]) => void;
@@ -80,6 +81,7 @@ export default function Schedule(props: Props = {}) {
   const students = props.students ?? STUDENTS;
   const teachers = props.teachers ?? TEACHERS;
   const programs = props.programs ?? PROGRAMS;
+  const canManage = props.canManage ?? true;
   const activeTeachers = teachers.filter((teacher) => teacher.status === 'active');
   const [fallbackSessions, setFallbackSessions] = useState<ClassSession[]>(() => createClassSessions(STUDENTS));
   const sessions = props.sessions ?? fallbackSessions;
@@ -256,10 +258,10 @@ export default function Schedule(props: Props = {}) {
           <h2>Atur jadwal mengajar mingguan</h2>
           <p>Kelola jam kelas, guru pengajar, program, ruang, dan murid dalam setiap sesi.</p>
         </div>
-        <button type="button" className="btn-primary schedule-add-main" onClick={() => openAdd()}>
+        {canManage && <button type="button" className="btn-primary schedule-add-main" onClick={() => openAdd()}>
           <ScheduleIcon size={17}><path d="M12 5v14M5 12h14" /></ScheduleIcon>
           Tambah Kelas
-        </button>
+        </button>}
       </div>
 
       <div className="schedule-summary-grid">
@@ -338,17 +340,17 @@ export default function Schedule(props: Props = {}) {
                   <span>{theme.short}</span>
                   <div><strong>{day}</strong><small>{daySessions.length} kelas</small></div>
                 </div>
-                <button type="button" onClick={() => openAdd(day)} title={`Tambah kelas ${day}`} aria-label={`Tambah kelas ${day}`}>
+                {canManage && <button type="button" onClick={() => openAdd(day)} title={`Tambah kelas ${day}`} aria-label={`Tambah kelas ${day}`}>
                   <ScheduleIcon size={16}><path d="M12 5v14M5 12h14" /></ScheduleIcon>
-                </button>
+                </button>}
               </header>
 
               <div className="day-session-list">
                 {daySessions.length === 0 ? (
-                  <button type="button" className="empty-day" onClick={() => openAdd(day)}>
+                  <button type="button" className="empty-day" onClick={() => canManage && openAdd(day)} disabled={!canManage}>
                     <ScheduleIcon size={20}><path d="M12 5v14M5 12h14" /></ScheduleIcon>
                     <span>Belum ada kelas</span>
-                    <small>Tambah jadwal</small>
+                    <small>{canManage ? 'Tambah jadwal' : 'Tidak ada sesi'}</small>
                   </button>
                 ) : (
                   daySessions.map((session) => {
@@ -366,14 +368,14 @@ export default function Schedule(props: Props = {}) {
                             <ScheduleIcon size={14}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></ScheduleIcon>
                             {session.time}
                           </span>
-                          <div className="class-actions">
+                          {canManage && <div className="class-actions">
                             <button type="button" onClick={() => openEdit(session)} title="Edit kelas" aria-label="Edit kelas">
                               <ScheduleIcon size={15}><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" /></ScheduleIcon>
                             </button>
                             <button type="button" className="delete" onClick={() => setDeleteTarget(session)} title="Hapus kelas" aria-label="Hapus kelas">
                               <ScheduleIcon size={15}><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6" /></ScheduleIcon>
                             </button>
-                          </div>
+                          </div>}
                         </div>
                         <h3>{program?.name ?? 'Program belum dipilih'}</h3>
                         <div className="class-teacher">
@@ -410,7 +412,7 @@ export default function Schedule(props: Props = {}) {
         })}
       </div>}
 
-      {viewMode === 'list' && <ScheduleTable sessions={filteredSessions.slice().sort((a, b) => ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day) || timeToMinutes(a.time) - timeToMinutes(b.time))} students={students} teachers={activeTeachers} programs={programs} onEdit={openEdit} onDelete={setDeleteTarget} />}
+      {viewMode === 'list' && <ScheduleTable sessions={filteredSessions.slice().sort((a, b) => ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day) || timeToMinutes(a.time) - timeToMinutes(b.time))} students={students} teachers={activeTeachers} programs={programs} onEdit={openEdit} onDelete={setDeleteTarget} canManage={canManage} />}
 
       <section className="teacher-workload-panel">
         <div className="teacher-workload-header">
@@ -433,7 +435,7 @@ export default function Schedule(props: Props = {}) {
         </div>
       </section>
 
-      {editor && (
+      {canManage && editor && (
         <div className="modal-overlay">
           <div className="modal-box schedule-editor-modal">
             <div className="schedule-modal-header">
@@ -522,7 +524,7 @@ export default function Schedule(props: Props = {}) {
         </div>
       )}
 
-      {deleteTarget && (
+      {canManage && deleteTarget && (
         <div className="modal-overlay">
           <div className="modal-box schedule-delete-modal">
             <span className="schedule-delete-icon"><ScheduleIcon size={24}><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6" /></ScheduleIcon></span>

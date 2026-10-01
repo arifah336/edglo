@@ -11,14 +11,15 @@ class ApiIntegrationCoverageTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_frontend_bootstrap_collections_and_dashboard_are_available(): void
+    public function test_frontend_workspace_collections_and_dashboard_are_available(): void
     {
-        $this->getJson('/api/v1/bootstrap')->assertUnauthorized();
+        $this->getJson('/api/v1/workspace')->assertUnauthorized();
         $this->authenticateSuperAdmin();
 
-        $this->getJson('/api/v1/bootstrap')
+        $this->getJson('/api/v1/workspace')
             ->assertOk()
             ->assertJsonPath('data.user.role', 'super_admin')
+            ->assertJsonPath('data.students.0.id', 'S001')
             ->assertJsonCount(7, 'data.programs')
             ->assertJsonCount(20, 'data.students')
             ->assertJsonCount(8, 'data.teachers')
@@ -28,6 +29,9 @@ class ApiIntegrationCoverageTest extends TestCase
 
         $this->getJson('/api/v1/programs?per_page=100')->assertOk()->assertJsonCount(7, 'data');
         $this->getJson('/api/v1/students?per_page=100')->assertOk()->assertJsonCount(20, 'data');
+        $this->getJson('/api/v1/students?per_page=100&sort=id&direction=desc')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', 'S020');
         $this->getJson('/api/v1/teachers?per_page=100')->assertOk()->assertJsonCount(8, 'data');
         $this->getJson('/api/v1/class-sessions?per_page=100')
             ->assertOk()
@@ -81,13 +85,13 @@ class ApiIntegrationCoverageTest extends TestCase
         $this->assertDatabaseMissing('teachers', ['id' => $created->json('data.id')]);
     }
 
-    public function test_admin_bootstrap_does_not_expose_admin_management_data(): void
+    public function test_admin_workspace_does_not_expose_admin_management_data(): void
     {
         $this->seed(EdgloSeeder::class);
         $admin = User::where('role', 'admin')->firstOrFail();
 
         $this->actingAs($admin, 'sanctum')
-            ->getJson('/api/v1/bootstrap')
+            ->getJson('/api/v1/workspace')
             ->assertOk()
             ->assertJsonPath('data.user.role', 'admin')
             ->assertJsonCount(0, 'data.admins');
@@ -95,7 +99,7 @@ class ApiIntegrationCoverageTest extends TestCase
 
     public function test_class_session_create_update_and_delete_are_persisted(): void
     {
-        $this->authenticateSuperAdmin();
+        $this->authenticateAdmin();
         $payload = [
             'day' => 'Sabtu',
             'time' => '20.00',
@@ -123,7 +127,7 @@ class ApiIntegrationCoverageTest extends TestCase
 
     public function test_payment_creation_generation_summary_and_settlement_are_connected(): void
     {
-        $this->authenticateSuperAdmin();
+        $this->authenticateAdmin();
 
         $paymentId = $this->postJson('/api/v1/payments', [
             'studentId' => 'S001',
@@ -184,6 +188,15 @@ class ApiIntegrationCoverageTest extends TestCase
     {
         $this->seed(EdgloSeeder::class);
         $admin = User::where('code', 'A001')->firstOrFail();
+        $this->actingAs($admin, 'sanctum');
+
+        return $admin;
+    }
+
+    private function authenticateAdmin(): User
+    {
+        $this->seed(EdgloSeeder::class);
+        $admin = User::where('role', 'admin')->firstOrFail();
         $this->actingAs($admin, 'sanctum');
 
         return $admin;

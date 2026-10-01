@@ -8,11 +8,20 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class EdgloApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_api_request_without_json_header_still_returns_unauthorized_json(): void
+    {
+        $this->get('/api/v1/programs')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Unauthenticated.');
+    }
 
     public function test_active_admin_can_login_and_receive_token(): void
     {
@@ -23,11 +32,49 @@ class EdgloApiTest extends TestCase
             'role' => 'super_admin',
         ]);
 
-        $this->postJson('/api/v1/auth/login', [
+        $this->postJson('/api/v1/auth/admin/login', [
             'email' => 'superadmin@edglo.id',
             'password' => 'admin123',
             'deviceName' => 'phpunit',
         ])->assertOk()->assertJsonPath('user.role', 'super_admin')->assertJsonStructure(['token', 'user']);
+    }
+
+    public function test_admin_login_rejects_parent_and_parent_login_is_not_exposed(): void
+    {
+        $admin = User::factory()->create([
+            'code' => 'A001',
+            'email' => 'admin@edglo.test',
+            'password' => 'admin123',
+            'role' => 'admin',
+        ]);
+        $parent = User::factory()->create([
+            'code' => 'P001',
+            'email' => 'parent@edglo.test',
+            'password' => 'parent123',
+            'role' => 'parent',
+        ]);
+
+        $this->postJson('/api/v1/auth/admin/login', [
+            'email' => $parent->email,
+            'password' => 'parent123',
+        ])->assertForbidden()->assertJsonPath('message', 'Akun ini tidak memiliki akses ke Portal Admin.');
+
+        $this->postJson('/api/v1/auth/parent/login', [
+            'email' => $admin->email,
+            'password' => 'admin123',
+        ])->assertNotFound();
+
+        $this->postJson('/api/v1/auth/parent/login', [
+            'email' => $parent->email,
+            'password' => 'parent123',
+        ])->assertNotFound();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => $parent->email,
+            'password' => 'parent123',
+        ])->assertNotFound();
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
     public function test_regular_admin_cannot_manage_admin_accounts(): void
@@ -39,7 +86,7 @@ class EdgloApiTest extends TestCase
 
     public function test_student_can_be_created_with_camel_case_payload_and_deactivated(): void
     {
-        $admin = User::factory()->create(['code' => 'A001', 'role' => 'super_admin']);
+        $admin = User::factory()->create(['code' => 'A002', 'role' => 'admin']);
         $this->seedAcademicReferences();
 
         $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/students', [
@@ -61,9 +108,36 @@ class EdgloApiTest extends TestCase
         $this->assertDatabaseHas('student_status_histories', ['student_id' => 'S001', 'action' => 'deactivated']);
     }
 
+    public function test_student_photo_is_stored_and_returned_as_a_public_url(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create(['code' => 'A003', 'role' => 'admin']);
+        $this->seedAcademicReferences();
+
+        $response = $this->actingAs($admin, 'sanctum')->post('/api/v1/students', [
+            'fullName' => 'Murid Dengan Foto',
+            'parentName' => 'Orang Tua Foto',
+            'address' => 'Batam',
+            'phone' => '081234567890',
+            'programId' => 'calistung-regular',
+            'sessionsPerWeek' => 3,
+            'joinDate' => '2026-10-01',
+            'teacherId' => 'T001',
+            'schedules' => [['day' => 'Senin', 'time' => '15.00']],
+            'photo' => UploadedFile::fake()->image('murid.png', 240, 240),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertCreated()->assertJsonPath('data.fullName', 'Murid Dengan Foto');
+        $student = Student::query()->findOrFail($response->json('data.id'));
+        $this->assertNotNull($student->photo);
+        $this->assertSame('/storage/'.$student->photo, $response->json('data.photo'));
+        $this->assertDatabaseHas('students', ['id' => $student->id, 'photo' => $student->photo]);
+        Storage::disk('public')->assertExists($student->photo);
+    }
+
     public function test_first_payment_automatically_calculates_registration_and_book_fees(): void
     {
-        $admin = User::factory()->create(['code' => 'A001', 'role' => 'super_admin']);
+        $admin = User::factory()->create(['code' => 'A002', 'role' => 'admin']);
         $this->seedAcademicReferences();
         Student::create([
             'id' => 'S001', 'full_name' => 'Murid Tagihan', 'parent_name' => 'Orang Tua',

@@ -3,13 +3,14 @@
 import Image from 'next/image';
 import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { TODAY } from '../data/mockData';
-import type { Page, UserRole } from '../types';
+import type { AccountRole, Page } from '../types';
 
 type NavItem = {
   page: Page;
   label: string;
   icon: ReactNode;
   superAdminOnly?: boolean;
+  adminOnly?: boolean;
 };
 
 type NavSection = {
@@ -68,6 +69,12 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Data Akademik',
     items: [
       {
+        page: 'registrations',
+        label: 'Pendaftaran Baru',
+        adminOnly: true,
+        icon: <Svg><path d="M9 5h6M9 9h6M9 13h3" /><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="m15 16 2 2 4-4" /></Svg>,
+      },
+      {
         page: 'students',
         label: 'Data Murid',
         icon: <Svg><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /></Svg>,
@@ -92,6 +99,11 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Jadwal Belajar',
         icon: <Svg><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></Svg>,
       },
+      {
+        page: 'attendance',
+        label: 'Absensi & Pengganti',
+        icon: <Svg><path d="M9 11l2 2 4-4" /><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 9h18" /></Svg>,
+      },
     ],
   },
   {
@@ -111,6 +123,12 @@ const NAV_SECTIONS: NavSection[] = [
         page: 'reports',
         label: 'Laporan PDF',
         icon: <Svg><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></Svg>,
+      },
+      {
+        page: 'payroll',
+        label: 'Slip Gaji Guru',
+        superAdminOnly: true,
+        icon: <Svg><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 9h6M7 13h10M16 9h1" /></Svg>,
       },
     ],
   },
@@ -134,6 +152,7 @@ const NAV_SECTIONS: NavSection[] = [
 
 const PAGE_META: Record<Page, { title: string; description: string }> = {
   dashboard: { title: 'Dashboard', description: 'Ringkasan operasional EdGLO hari ini' },
+  registrations: { title: 'Pendaftaran Baru', description: 'Verifikasi formulir calon murid dari landing page' },
   students: { title: 'Data Murid', description: 'Kelola data dan informasi murid' },
   'student-form': { title: 'Form Murid', description: 'Lengkapi informasi murid' },
   'student-detail': { title: 'Detail Murid', description: 'Informasi lengkap murid' },
@@ -143,9 +162,12 @@ const PAGE_META: Record<Page, { title: string; description: string }> = {
   'teacher-detail': { title: 'Detail Guru', description: 'Informasi lengkap guru' },
   'teacher-activation': { title: 'Status Guru', description: 'Kelola status aktif dan riwayat guru' },
   schedule: { title: 'Jadwal Belajar', description: 'Pantau seluruh sesi belajar mingguan' },
+  'schedule-requests': { title: 'Pengajuan Akademik', description: 'Tinjau pengajuan jadwal dan paket dari orang tua' },
+  attendance: { title: 'Absensi & Pengganti', description: 'Catat kehadiran dan atur kelas pengganti' },
   'finance-monthly': { title: 'Keuangan Bulanan', description: 'Pantau pembayaran dan pemasukan bulanan' },
   'finance-yearly': { title: 'Keuangan Tahunan', description: 'Analisis rekap pemasukan tahunan' },
   reports: { title: 'Laporan PDF', description: 'Unduh laporan administrasi EdGLO' },
+  payroll: { title: 'Slip Gaji Guru', description: 'Hitung penggajian berdasarkan sesi mengajar' },
   'admin-management': { title: 'Kelola Admin', description: 'Atur akun dan hak akses pengelola' },
   settings: { title: 'Pengaturan Akun', description: 'Perbarui profil dan keamanan akun' },
 };
@@ -154,12 +176,14 @@ type Props = {
   currentPage: Page;
   onNavigate: (page: Page) => void;
   onLogout: () => void;
-  role: UserRole;
+  role: AccountRole;
   adminName: string;
+  pendingRegistrations?: number;
+  pendingScheduleRequests?: number;
   children: ReactNode;
 };
 
-export default function Layout({ currentPage, onNavigate, onLogout, role, adminName, children }: Props) {
+export default function Layout({ currentPage, onNavigate, onLogout, role, adminName, pendingRegistrations = 0, pendingScheduleRequests = 0, children }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const sidebarState = useSyncExternalStore(
@@ -211,8 +235,8 @@ export default function Layout({ currentPage, onNavigate, onLogout, role, adminN
           <Image
             src="/edglo-logo.png"
             alt="EdGLO"
-            width={454}
-            height={244}
+            width={512}
+            height={512}
             priority
             className="sidebar-logo"
           />
@@ -223,7 +247,9 @@ export default function Layout({ currentPage, onNavigate, onLogout, role, adminN
 
         <nav className="sidebar-nav" aria-label="Navigasi utama">
           {NAV_SECTIONS.map((section) => {
-            const visibleItems = section.items.filter((item) => !item.superAdminOnly || role === 'super_admin');
+            const visibleItems = section.items.filter((item) =>
+              (!item.superAdminOnly || role === 'super_admin') && (!item.adminOnly || role === 'admin'),
+            );
             if (!visibleItems.length) return null;
 
             return (
@@ -240,6 +266,8 @@ export default function Layout({ currentPage, onNavigate, onLogout, role, adminN
                   >
                     <span className="sidebar-link-icon">{item.icon}</span>
                     <span className="sidebar-link-label">{item.label}</span>
+                    {item.page === 'registrations' && pendingRegistrations > 0 && <span className="sidebar-nav-count">{pendingRegistrations > 99 ? '99+' : pendingRegistrations}</span>}
+                    {item.page === 'schedule-requests' && pendingScheduleRequests > 0 && <span className="sidebar-nav-count">{pendingScheduleRequests > 99 ? '99+' : pendingScheduleRequests}</span>}
                     {isActive(item.page) && <span className="active-indicator" />}
                   </button>
                 ))}
@@ -297,7 +325,7 @@ export default function Layout({ currentPage, onNavigate, onLogout, role, adminN
                 <span className="profile-avatar small">{adminName.charAt(0)}</span>
                 <span className="topbar-profile-copy">
                   <strong>{adminName.replace(' EdGLO', '')}</strong>
-                  <span>{role === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
+                  <span>{role === 'super_admin' ? 'Super Admin (Owner)' : 'Admin'}</span>
                 </span>
                 <Svg size={15}><path d="m6 9 6 6 6-6" /></Svg>
               </button>
@@ -308,7 +336,7 @@ export default function Layout({ currentPage, onNavigate, onLogout, role, adminN
                     <span className="profile-avatar">{adminName.charAt(0)}</span>
                     <div>
                       <strong>{adminName}</strong>
-                      <span>{role === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
+                      <span>{role === 'super_admin' ? 'Super Admin (Owner)' : 'Admin'}</span>
                     </div>
                   </div>
                   <div className="profile-dropdown-divider" />

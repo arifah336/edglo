@@ -12,6 +12,7 @@ class PaymentRequest extends FormRequest
         $map = [
             'student_id' => 'studentId', 'program_fee' => 'programFee',
             'registration_fee' => 'registrationFee', 'book_fee' => 'bookFee',
+            'other_fee' => 'otherFee',
             'due_date' => 'dueDate', 'paid_date' => 'paidDate',
         ];
         foreach ($map as $snake => $camel) {
@@ -35,6 +36,8 @@ class PaymentRequest extends FormRequest
             'program_fee' => ['nullable', 'integer', 'min:0'],
             'registration_fee' => ['nullable', 'integer', 'min:0'],
             'book_fee' => ['nullable', 'integer', 'min:0'],
+            'other_fee' => ['nullable', 'integer', 'min:0'],
+            'discount' => ['nullable', 'integer', 'min:0'],
             'due_date' => ['required', 'date'],
             'paid_date' => ['nullable', 'date'],
             'status' => ['nullable', Rule::in(['paid', 'pending', 'overdue'])],

@@ -16,7 +16,7 @@ class AdminController extends Controller
 
     public function index(Request $request)
     {
-        $query = User::query()->latest();
+        $query = User::query()->whereIn('role', ['super_admin', 'admin'])->latest();
         if ($request->filled('search')) {
             $search = $request->string('search');
             $query->where(fn ($builder) => $builder->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"));
@@ -37,11 +37,14 @@ class AdminController extends Controller
 
     public function show(User $admin): UserResource
     {
+        abort_unless(in_array($admin->role, ['super_admin', 'admin'], true), 404);
+
         return new UserResource($admin);
     }
 
     public function update(AdminRequest $request, User $admin): UserResource
     {
+        abort_unless(in_array($admin->role, ['super_admin', 'admin'], true), 404);
         $data = $request->validated();
         unset($data['password_confirmation']);
         if (empty($data['password'])) {
@@ -54,6 +57,7 @@ class AdminController extends Controller
 
     public function destroy(Request $request, User $admin): JsonResponse
     {
+        abort_unless(in_array($admin->role, ['super_admin', 'admin'], true), 404);
         abort_if($request->user()->is($admin), 422, 'Akun yang sedang dipakai tidak dapat dihapus.');
         abort_if($admin->isSuperAdmin() && User::where('role', 'super_admin')->where('is_active', true)->count() <= 1, 422, 'Minimal satu Super Admin aktif harus tersedia.');
         $admin->tokens()->delete();

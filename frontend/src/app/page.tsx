@@ -1,7 +1,5 @@
-﻿import App from '../App';
-
-import { ToastProvider } from '../components/ui/ToastProvider';
+import PremiumLandingPage from '../components/landing/PremiumLandingPage';
 
 export default function Home() {
-  return <ToastProvider><App /></ToastProvider>;
+  return <PremiumLandingPage />;
 }

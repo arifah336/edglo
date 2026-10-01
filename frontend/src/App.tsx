@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import type { Admin, AuthUser, ClassSession, Page, Payment, Program, Student, Teacher } from './types';
+import type { Admin, ClassSession, CourseRegistration, MakeUpSchedule, Page, Payment, Program, ScheduleChangeRequest, Student, StudentAbsence, Teacher, TeacherAttendance, TeacherPayroll } from './types';
 import Layout from './components/Layout';
 import Dashboard from './views/Dashboard';
 import Students from './views/Students';
@@ -12,101 +13,17 @@ import Finance from './views/Finance';
 import Reports from './views/Reports';
 import AdminManagement from './views/AdminManagement';
 import Settings from './views/Settings';
+import Registrations from './views/Registrations';
+import Attendance from './views/Attendance';
+import Payroll from './views/Payroll';
+import ScheduleRequests from './views/ScheduleRequests';
 import { ApiError, api } from './lib/api';
 import { useToast } from './components/ui/ToastProvider';
-
-const AUTH_STORAGE_KEY = 'edglo-auth';
-const AUTH_CHANGE_EVENT = 'edglo-auth-change';
-type AuthSession = { token: string; user: AuthUser };
-
-function subscribeAuth(callback: () => void) {
-  window.addEventListener('storage', callback);
-  window.addEventListener(AUTH_CHANGE_EVENT, callback);
-  return () => {
-    window.removeEventListener('storage', callback);
-    window.removeEventListener(AUTH_CHANGE_EVENT, callback);
-  };
-}
-
-function getAuthSnapshot() {
-  return localStorage.getItem(AUTH_STORAGE_KEY) ?? '';
-}
-
-function getServerAuthSnapshot() {
-  return null;
-}
-
-function parseAuthSession(snapshot: string): AuthSession | null {
-  try {
-    const session = JSON.parse(snapshot) as Partial<AuthSession>;
-    return session.token && session.user?.id ? session as AuthSession : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeAuthSession(session?: AuthSession) {
-  if (session) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
-  else localStorage.removeItem(AUTH_STORAGE_KEY);
-  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
-}
+import SessionLoading from './components/auth/SessionLoading';
+import { type AuthSession, getAuthSnapshot, getServerAuthSnapshot, parseAuthSession, subscribeAuth, writeAuthSession } from './lib/authSession';
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Terjadi kesalahan saat menghubungi server.';
-}
-
-function AuthHydrationLoading() {
-  return (
-    <div className="auth-loading" role="status" aria-live="polite">
-      <Image src="/edglo-logo.png" alt="EdGLO" width={454} height={244} priority />
-      <span>Memulihkan sesi...</span>
-    </div>
-  );
-}
-
-function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await onLogin(email.trim().toLowerCase(), password);
-    } catch (submitError) {
-      setError(errorMessage(submitError));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleTheme = () => {
-    const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = nextTheme;
-    localStorage.setItem('edglo-theme', nextTheme);
-  };
-
-  return (
-    <div className="login-page" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #EEF7F8 0%, #E0EFFF 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <button type="button" className="login-theme-toggle" onClick={toggleTheme} aria-label="Ganti tema putih atau hitam" title="Ganti tema"><span aria-hidden="true">◐</span></button>
-      <div style={{ width: '100%', maxWidth: 420 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}><Image src="/edglo-logo.png" alt="EdGLO" width={454} height={244} priority style={{ width: 260, height: 'auto', objectFit: 'contain', margin: '0 auto 8px' }} /><div style={{ fontSize: 13, color: '#6B7C8D', fontWeight: 700, marginTop: 2 }}>Admin Panel - Sistem Manajemen Lembaga</div></div>
-        <div className="card login-panel" style={{ boxShadow: '0 8px 32px rgba(31,41,51,0.10)' }}>
-          <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 20, fontWeight: 700, color: '#1F2933', marginBottom: 4 }}>Masuk ke Dashboard</div>
-          <div style={{ fontSize: 13, color: '#6B7C8D', marginBottom: 24 }}>Gunakan akun admin yang terdaftar di backend EdGLO</div>
-          <form suppressHydrationWarning onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div><label className="input-label" htmlFor="login-email">Email</label><input id="login-email" suppressHydrationWarning className="input-field" type="email" name="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="superadmin@edglo.id" required /></div>
-            <div><label className="input-label" htmlFor="login-password">Password</label><input id="login-password" suppressHydrationWarning className="input-field" type="password" name="password" autoCapitalize="none" autoCorrect="off" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Masukkan password" required /></div>
-            {error && <div className="login-error" role="alert">{error}</div>}
-            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px 0', fontSize: 15, marginTop: 4 }}>{loading ? 'Memeriksa akun...' : 'Masuk'}</button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function BackendLoading({ error, onRetry, onLogout }: { error?: string; onRetry: () => void; onLogout: () => void }) {
@@ -114,7 +31,7 @@ function BackendLoading({ error, onRetry, onLogout }: { error?: string; onRetry:
     <div className="backend-loading-screen" role={error ? 'alert' : 'status'} aria-live="polite">
       <div className="backend-loading-visual">
         <span className="backend-loading-ring" aria-hidden="true" />
-        <Image className="backend-loading-logo" src="/edglo-logo.png" alt="EdGLO" width={454} height={244} priority />
+        <Image className="backend-loading-logo" src="/edglo-logo.png" alt="EdGLO" width={512} height={512} priority />
       </div>
       <div className="backend-loading-copy">
         <strong>{error ? 'Data belum berhasil dimuat' : 'Menyiapkan EdGLO'}</strong>
@@ -130,6 +47,7 @@ function replaceById<T extends { id: string }>(items: T[], item: T, oldId = item
 }
 
 export default function App() {
+  const router = useRouter();
   const { notify } = useToast();
   const authSnapshot = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getServerAuthSnapshot);
   const authSession = authSnapshot === null ? null : parseAuthSession(authSnapshot);
@@ -143,14 +61,21 @@ export default function App() {
   const [classSessions, setClassSessions] = useState<ClassSession[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [admins, setAdmins] = useState<Admin[]>([]);
+  const [registrations, setRegistrations] = useState<CourseRegistration[]>([]);
+  const [teacherAttendances, setTeacherAttendances] = useState<TeacherAttendance[]>([]);
+  const [studentAbsences, setStudentAbsences] = useState<StudentAbsence[]>([]);
+  const [makeUpSchedules, setMakeUpSchedules] = useState<MakeUpSchedule[]>([]);
+  const [teacherPayrolls, setTeacherPayrolls] = useState<TeacherPayroll[]>([]);
+  const [scheduleChangeRequests, setScheduleChangeRequests] = useState<ScheduleChangeRequest[]>([]);
   const token = authSession?.token;
   const user = authSession?.user;
+  const hasAuthSession = Boolean(authSession);
 
   const loadData = useCallback(async (session: AuthSession) => {
     setDataReady(false);
     setLoadingError('');
     try {
-      const data = await api.bootstrap(session.token);
+      const data = await api.workspace(session.token);
       writeAuthSession({ token: session.token, user: data.user });
       setPrograms(data.programs);
       setStudents(data.students);
@@ -158,33 +83,43 @@ export default function App() {
       setClassSessions(data.sessions);
       setPayments(data.payments);
       setAdmins(data.admins);
+      setRegistrations(data.registrations ?? []);
+      setTeacherAttendances(data.teacherAttendances ?? []);
+      setStudentAbsences(data.studentAbsences ?? []);
+      setMakeUpSchedules(data.makeUpSchedules ?? []);
+      setTeacherPayrolls(data.teacherPayrolls ?? []);
+      setScheduleChangeRequests(data.scheduleChangeRequests ?? []);
       setDataReady(true);
     } catch (loadError) {
-      if (loadError instanceof ApiError && loadError.status === 401) writeAuthSession();
+      if (loadError instanceof ApiError && loadError.status === 401) {
+        writeAuthSession();
+        router.replace('/login');
+      }
       else {
         const message = errorMessage(loadError);
         setLoadingError(message);
         notify({ tone: 'error', title: 'Data belum dapat dimuat', message });
       }
     }
-  }, [notify]);
+  }, [notify, router]);
 
   useEffect(() => {
-    if (!authSession) return;
+    if (authSnapshot !== null && !hasAuthSession) router.replace('/login');
+    else if (authSession?.user.role === 'parent') router.replace('/parent');
+  }, [authSnapshot, authSession?.user.role, hasAuthSession, router]);
+
+  useEffect(() => {
+    if (!authSession || authSession.user.role === 'parent') return;
     const timer = window.setTimeout(() => void loadData(authSession), 0);
     return () => window.clearTimeout(timer);
     // Token adalah identitas stabil sesi; pembaruan profil tidak perlu memuat ulang semua data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authSession?.token, loadData]);
 
-  const handleLogin = async (email: string, password: string) => {
-    const response = await api.login(email, password);
-    writeAuthSession({ token: response.token, user: response.user });
-  };
-
   const handleLogout = async () => {
     const logoutToken = token;
     writeAuthSession();
+    router.replace('/login');
     setDataReady(false);
     setLoadingError('');
     setStudents([]);
@@ -193,6 +128,12 @@ export default function App() {
     setClassSessions([]);
     setPayments([]);
     setAdmins([]);
+    setRegistrations([]);
+    setTeacherAttendances([]);
+    setStudentAbsences([]);
+    setMakeUpSchedules([]);
+    setTeacherPayrolls([]);
+    setScheduleChangeRequests([]);
     setCurrentPage('dashboard');
     setNavContext({});
     if (logoutToken) await api.logout(logoutToken).catch(() => undefined);
@@ -290,25 +231,124 @@ export default function App() {
     setNavContext({ id });
   };
 
-  if (authSnapshot === null) return <AuthHydrationLoading />;
-  if (!authSession) return <LoginPage onLogin={handleLogin} />;
+  const handleApproveRegistration = async (id: string, note: string) => {
+    if (!token) return;
+    try {
+      const saved = await api.approveRegistration(token, id, note);
+      setRegistrations((current) => replaceById(current, saved));
+      setStudents(await api.students(token));
+      notify({ tone: 'success', title: 'Pendaftaran disetujui', message: 'Data murid sudah dibuat. Guru dan jadwal dapat ditentukan berikutnya.' });
+    } catch (approvalError) {
+      const message = errorMessage(approvalError);
+      notify({ tone: 'error', title: 'Pendaftaran gagal disetujui', message });
+      throw approvalError;
+    }
+  };
+
+  const handleRejectRegistration = async (id: string, note: string) => {
+    if (!token) return;
+    try {
+      const saved = await api.rejectRegistration(token, id, note);
+      setRegistrations((current) => replaceById(current, saved));
+      notify({ tone: 'success', title: 'Pendaftaran ditolak', message: 'Catatan penolakan tersimpan. Hubungi orang tua melalui WhatsApp bila perlu.' });
+    } catch (rejectionError) {
+      const message = errorMessage(rejectionError);
+      notify({ tone: 'error', title: 'Pendaftaran gagal diproses', message });
+      throw rejectionError;
+    }
+  };
+
+  const handleApproveScheduleRequest = async (id: string, note: string) => {
+    if (!token) return;
+    try {
+      const saved = await api.approveScheduleChangeRequest(token, id, note);
+      setScheduleChangeRequests((current) => replaceById(current, saved));
+      const [nextStudents, nextSessions] = await Promise.all([api.students(token), api.sessions(token)]);
+      setStudents(nextStudents);
+      setClassSessions(nextSessions);
+      notify({ tone: 'success', title: 'Pengajuan berhasil disetujui', message: 'Data akademik dan Portal Orang Tua sudah diperbarui.' });
+    } catch (approvalError) {
+      notify({ tone: 'error', title: 'Pengajuan belum dapat disetujui', message: errorMessage(approvalError) });
+      throw approvalError;
+    }
+  };
+
+  const handleRejectScheduleRequest = async (id: string, note: string) => {
+    if (!token) return;
+    try {
+      const saved = await api.rejectScheduleChangeRequest(token, id, note);
+      setScheduleChangeRequests((current) => replaceById(current, saved));
+      notify({ tone: 'success', title: 'Permintaan ditolak', message: 'Alasan penolakan dapat dilihat oleh orang tua.' });
+    } catch (rejectionError) {
+      notify({ tone: 'error', title: 'Permintaan belum dapat diproses', message: errorMessage(rejectionError) });
+      throw rejectionError;
+    }
+  };
+
+  const saveTeacherAttendance = async (data: Partial<TeacherAttendance>) => {
+    if (!token) return;
+    const saved = await api.saveTeacherAttendance(token, data);
+    setTeacherAttendances((current) => [saved, ...current.filter((item) => item.id !== saved.id && !(item.teacherId === saved.teacherId && item.classSessionId === saved.classSessionId && item.attendanceDate === saved.attendanceDate))]);
+  };
+  const deleteTeacherAttendance = async (id: string) => {
+    if (!token) return;
+    await api.deleteTeacherAttendance(token, id);
+    setTeacherAttendances((current) => current.filter((item) => item.id !== id));
+  };
+  const saveStudentAbsence = async (data: Partial<StudentAbsence>) => {
+    if (!token) return;
+    const saved = await api.saveStudentAbsence(token, data);
+    setStudentAbsences((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+  };
+  const deleteStudentAbsence = async (id: string) => {
+    if (!token) return;
+    await api.deleteStudentAbsence(token, id);
+    setStudentAbsences((current) => current.filter((item) => item.id !== id));
+    setMakeUpSchedules((current) => current.filter((item) => item.studentAbsenceId !== id));
+  };
+  const saveMakeUpSchedule = async (data: Partial<MakeUpSchedule>, id?: string) => {
+    if (!token) return;
+    const saved = id ? await api.updateMakeUpSchedule(token, id, data) : await api.createMakeUpSchedule(token, data);
+    setMakeUpSchedules((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+    setStudentAbsences((current) => current.map((item) => item.id === saved.studentAbsenceId ? { ...item, status: saved.status === 'completed' ? 'completed' : 'replacement_scheduled', makeUpSchedule: saved } : item));
+  };
+  const deleteMakeUpSchedule = async (id: string) => {
+    if (!token) return;
+    const schedule = makeUpSchedules.find((item) => item.id === id);
+    await api.deleteMakeUpSchedule(token, id);
+    setMakeUpSchedules((current) => current.filter((item) => item.id !== id));
+    if (schedule) setStudentAbsences((current) => current.map((item) => item.id === schedule.studentAbsenceId ? { ...item, status: 'open', makeUpSchedule: undefined } : item));
+  };
+  const saveTeacherPayroll = async (data: Partial<TeacherPayroll>) => {
+    if (!token) return;
+    const saved = await api.saveTeacherPayroll(token, data);
+    setTeacherPayrolls((current) => [saved, ...current.filter((item) => item.id !== saved.id && !(item.teacherId === saved.teacherId && item.month === saved.month && item.year === saved.year))]);
+  };
+
+  if (authSnapshot === null || !authSession || authSession.user.role === 'parent') {
+    return <SessionLoading message={authSnapshot === null ? 'Memulihkan sesi...' : 'Membuka halaman login...'} />;
+  }
   if (!dataReady) return <BackendLoading error={loadingError || undefined} onRetry={() => void loadData(authSession)} onLogout={() => void handleLogout()} />;
 
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigate} students={students} teachers={teachers} payments={payments} programs={programs} />;
+      case 'registrations': return user?.role === 'admin' ? <Registrations registrations={registrations} onApprove={handleApproveRegistration} onReject={handleRejectRegistration} onNavigate={handleNavigate} /> : <div className="access-denied">Akses operasional hanya untuk Admin.</div>;
       case 'students':
       case 'student-form':
-      case 'student-detail': return <Students key={currentPage + ':' + (navContext.id ?? '')} onNavigate={handleNavigate} students={students} teachers={teachers} programs={programs} onStudentsChange={handleStudentsChange} initialView={currentPage === 'student-form' ? 'form' : currentPage === 'student-detail' ? 'detail' : 'list'} viewStudentId={currentPage === 'student-detail' ? navContext.id : undefined} editStudentId={currentPage === 'student-form' ? navContext.id : undefined} />;
-      case 'student-activation': return <Students key="student-activation" onNavigate={handleNavigate} students={students} teachers={teachers} programs={programs} onStudentsChange={handleStudentsChange} initialView="activation" />;
+      case 'student-detail': return <Students key={currentPage + ':' + (navContext.id ?? '')} canManage={user?.role === 'admin'} onNavigate={handleNavigate} students={students} teachers={teachers} programs={programs} registrations={registrations} onStudentsChange={handleStudentsChange} initialView={currentPage === 'student-form' ? 'form' : currentPage === 'student-detail' ? 'detail' : 'list'} viewStudentId={currentPage === 'student-detail' ? navContext.id : undefined} editStudentId={currentPage === 'student-form' ? navContext.id : undefined} />;
+      case 'student-activation': return <Students key="student-activation" canManage={user?.role === 'admin'} onNavigate={handleNavigate} students={students} teachers={teachers} programs={programs} onStudentsChange={handleStudentsChange} initialView="activation" />;
       case 'teachers':
       case 'teacher-form':
       case 'teacher-detail':
-      case 'teacher-activation': return <Teachers key={currentPage + ':' + (navContext.id ?? '')} onNavigate={handleNavigate} initialView={currentPage === 'teacher-form' ? 'form' : currentPage === 'teacher-detail' ? 'detail' : currentPage === 'teacher-activation' ? 'activation' : 'list'} initialTeacherId={navContext.id} students={students} sessions={classSessions} teachers={teachers} onTeachersChange={handleTeachersChange} />;
-      case 'schedule': return <Schedule students={students} teachers={teachers} programs={programs} sessions={classSessions} onSessionsChange={handleSessionsChange} />;
-      case 'finance-monthly': return <Finance mode="monthly" students={students} programs={programs} payments={payments} onPaymentsChange={handlePaymentsChange} />;
-      case 'finance-yearly': return <Finance mode="yearly" students={students} programs={programs} payments={payments} onPaymentsChange={handlePaymentsChange} />;
+      case 'teacher-activation': return <Teachers key={currentPage + ':' + (navContext.id ?? '')} canManage={user?.role === 'super_admin'} onNavigate={handleNavigate} initialView={currentPage === 'teacher-form' ? 'form' : currentPage === 'teacher-detail' ? 'detail' : currentPage === 'teacher-activation' ? 'activation' : 'list'} initialTeacherId={navContext.id} students={students} sessions={classSessions} teachers={teachers} onTeachersChange={handleTeachersChange} />;
+      case 'schedule': return <Schedule canManage={user?.role === 'admin'} students={students} teachers={teachers} programs={programs} sessions={classSessions} onSessionsChange={handleSessionsChange} />;
+      case 'schedule-requests': return user?.role === 'admin' ? <ScheduleRequests requests={scheduleChangeRequests} onApprove={handleApproveScheduleRequest} onReject={handleRejectScheduleRequest} onNavigate={handleNavigate} /> : <div className="access-denied">Akses operasional hanya untuk Admin.</div>;
+      case 'attendance': return <Attendance role={user?.role === 'super_admin' ? 'super_admin' : 'admin'} students={students} teachers={teachers} sessions={classSessions} teacherAttendances={teacherAttendances} studentAbsences={studentAbsences} makeUpSchedules={makeUpSchedules} onSaveTeacherAttendance={saveTeacherAttendance} onDeleteTeacherAttendance={deleteTeacherAttendance} onSaveStudentAbsence={saveStudentAbsence} onDeleteStudentAbsence={deleteStudentAbsence} onSaveMakeUpSchedule={saveMakeUpSchedule} onDeleteMakeUpSchedule={deleteMakeUpSchedule} />;
+      case 'finance-monthly': return <Finance canManage={user?.role === 'admin'} mode="monthly" students={students} programs={programs} payments={payments} onPaymentsChange={handlePaymentsChange} />;
+      case 'finance-yearly': return <Finance canManage={user?.role === 'admin'} mode="yearly" students={students} programs={programs} payments={payments} onPaymentsChange={handlePaymentsChange} />;
       case 'reports': return <Reports students={students} teachers={teachers} programs={programs} payments={payments} />;
+      case 'payroll': return user?.role === 'super_admin' ? <Payroll teachers={teachers} attendances={teacherAttendances} payrolls={teacherPayrolls} onSave={saveTeacherPayroll} /> : <div className="access-denied">Akses penggajian hanya untuk Super Admin (Owner).</div>;
       case 'admin-management': return authSession.user.role === 'super_admin' ? <AdminManagement admins={admins} token={authSession.token} onAdminsChange={setAdmins} /> : <div style={{ padding: 40, textAlign: 'center', color: '#6B7C8D' }}>Akses ditolak</div>;
       case 'settings': return <Settings user={authSession.user} token={authSession.token} onUserChange={(nextUser) => writeAuthSession({ token: authSession.token, user: nextUser })} />;
       default: return <Dashboard onNavigate={handleNavigate} students={students} teachers={teachers} payments={payments} programs={programs} />;
@@ -316,7 +356,7 @@ export default function App() {
   };
 
   return (
-    <Layout currentPage={currentPage} onNavigate={handleNavigate} onLogout={() => void handleLogout()} role={user?.role ?? 'admin'} adminName={user?.name ?? 'Admin EdGLO'}>
+    <Layout currentPage={currentPage} onNavigate={handleNavigate} onLogout={() => void handleLogout()} role={user?.role ?? 'admin'} adminName={user?.name ?? 'Admin EdGLO'} pendingRegistrations={registrations.filter((item) => item.status === 'pending').length} pendingScheduleRequests={scheduleChangeRequests.filter((item) => item.status === 'pending').length}>
       {renderPage()}
     </Layout>
   );

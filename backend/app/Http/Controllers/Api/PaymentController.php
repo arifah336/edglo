@@ -77,7 +77,9 @@ class PaymentController extends Controller
         $programFee = (int) ($data['program_fee'] ?? $payment->program_fee);
         $registrationFee = (int) ($data['registration_fee'] ?? $payment->registration_fee);
         $bookFee = (int) ($data['book_fee'] ?? $payment->book_fee);
-        $data['total'] = $programFee + $registrationFee + $bookFee;
+        $otherFee = (int) ($data['other_fee'] ?? $payment->other_fee);
+        $discount = (int) ($data['discount'] ?? $payment->discount);
+        $data['total'] = max(0, $programFee + $registrationFee + $bookFee + $otherFee - $discount);
         if (($data['status'] ?? null) === 'paid' && empty($data['paid_date'])) {
             $data['paid_date'] = today();
         }

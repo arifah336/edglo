@@ -10,13 +10,14 @@ type Props = {
   onView: (payment: Payment) => void;
   onMarkPaid: (payment: Payment) => void;
   startIndex?: number;
+  canManage?: boolean;
 };
 
 export function invoiceNumber(payment: Payment) {
   return `INV/${payment.year}/${String(payment.month).padStart(2, '0')}/${payment.id.replace(/\D/g, '').padStart(4, '0')}`;
 }
 
-export default function PaymentTable({ payments, students, programs, mode, onView, onMarkPaid, startIndex = 0 }: Props) {
+export default function PaymentTable({ payments, students, programs, mode, onView, onMarkPaid, startIndex = 0, canManage = true }: Props) {
   return (
     <div className="data-table-shell finance-table-shell">
       <table className="data-table finance-table">
@@ -45,7 +46,12 @@ export default function PaymentTable({ payments, students, programs, mode, onVie
                 </td>
                 <td><strong>{student?.fullName ?? 'Murid tidak ditemukan'}</strong><small>{program?.name ?? '-'}</small></td>
                 <td><strong>{mode === 'yearly' ? `${MONTH_NAMES[payment.month - 1]} ${payment.year}` : formatDate(payment.dueDate)}</strong>{payment.paidDate && <small>Dibayar {formatDate(payment.paidDate)}</small>}</td>
-                <td><span>Les {formatCurrency(payment.programFee)}</span><small>{payment.registrationFee ? `Daftar ${formatCurrency(payment.registrationFee)}` : ''}{payment.registrationFee && payment.bookFee ? ' + ' : ''}{payment.bookFee ? `Buku ${formatCurrency(payment.bookFee)}` : ''}</small></td>
+                <td><span>Les {formatCurrency(payment.programFee)}</span><small>{[
+                  payment.registrationFee ? `Daftar ${formatCurrency(payment.registrationFee)}` : '',
+                  payment.bookFee ? `Buku ${formatCurrency(payment.bookFee)}` : '',
+                  payment.otherFee ? `Lainnya ${formatCurrency(payment.otherFee)}` : '',
+                  payment.discount ? `Diskon -${formatCurrency(payment.discount)}` : '',
+                ].filter(Boolean).join(' + ') || 'Tanpa biaya tambahan'}</small></td>
                 <td className="money-cell">{formatCurrency(payment.total)}</td>
                 <td>
                   <div className="payment-status-stack">
@@ -55,7 +61,7 @@ export default function PaymentTable({ payments, students, programs, mode, onVie
                 </td>
                 <td className="action-cell">
                   <button type="button" className="btn-secondary btn-sm" onClick={() => onView(payment)}>Lihat</button>
-                  {payment.status !== 'paid' && <button type="button" className="btn-primary btn-sm" onClick={() => onMarkPaid(payment)}>Lunasi</button>}
+                  {canManage && payment.status !== 'paid' && <button type="button" className="btn-primary btn-sm" onClick={() => onMarkPaid(payment)}>Lunasi</button>}
                 </td>
               </tr>
             );

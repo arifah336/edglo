@@ -9,9 +9,10 @@ type Props = {
   programs: Program[];
   onEdit: (session: ClassSession) => void;
   onDelete: (session: ClassSession) => void;
+  canManage?: boolean;
 };
 
-export default function ScheduleTable({ sessions, students, teachers, programs, onEdit, onDelete }: Props) {
+export default function ScheduleTable({ sessions, students, teachers, programs, onEdit, onDelete, canManage = true }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const totalPages = Math.max(1, Math.ceil(sessions.length / pageSize));
@@ -45,7 +46,7 @@ export default function ScheduleTable({ sessions, students, teachers, programs, 
                   <td data-label="Ruang"><strong>{session.room}</strong></td>
                   <td data-label="Murid"><strong>{classStudents.length} murid</strong><small>{classStudents.slice(0, 2).map((student) => student.fullName).join(', ') || 'Belum ada peserta'}</small></td>
                   <td data-label="Kapasitas"><div className="schedule-capacity-cell"><div><i style={{ width: `${fullness}%` }} /></div><span className={isFull ? 'full' : ''}>{session.studentIds.length}/{session.capacity}</span></div></td>
-                  <td className="schedule-table-actions"><div><button type="button" className="btn-secondary btn-sm" onClick={() => onEdit(session)}>Edit</button><button type="button" className="btn-danger btn-sm" onClick={() => onDelete(session)}>Hapus</button></div></td>
+                  <td className="schedule-table-actions">{canManage ? <div><button type="button" className="btn-secondary btn-sm" onClick={() => onEdit(session)}>Edit</button><button type="button" className="btn-danger btn-sm" onClick={() => onDelete(session)}>Hapus</button></div> : <span className="read-only-label">Lihat saja</span>}</td>
                 </tr>
               );
             })}

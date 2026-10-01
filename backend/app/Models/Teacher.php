@@ -13,7 +13,8 @@ class Teacher extends Model
 
     protected $fillable = [
         'id', 'full_name', 'address', 'birth_place', 'birth_date', 'religion', 'email',
-        'phone', 'last_education', 'join_date', 'leave_date', 'photo', 'employment_type', 'status',
+        'phone', 'emergency_contact_name', 'emergency_contact_phone', 'last_education', 'join_date',
+        'leave_date', 'photo', 'employment_type', 'notes', 'status',
     ];
 
     protected function casts(): array
@@ -34,5 +35,15 @@ class Teacher extends Model
     public function statusHistories(): HasMany
     {
         return $this->hasMany(TeacherStatusHistory::class)->orderBy('date');
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(TeacherAttendance::class);
+    }
+
+    public function payrolls(): HasMany
+    {
+        return $this->hasMany(TeacherPayroll::class);
     }
 }

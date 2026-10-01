@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -63,5 +64,20 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->role === 'super_admin';
+    }
+
+    public function courseRegistrations(): HasMany
+    {
+        return $this->hasMany(CourseRegistration::class, 'parent_user_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(Student::class, 'parent_user_id');
+    }
+
+    public function scheduleChangeRequests(): HasMany
+    {
+        return $this->hasMany(ScheduleChangeRequest::class, 'parent_user_id');
     }
 }

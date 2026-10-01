@@ -22,7 +22,7 @@ export default function AdminCredentialModal({ admin, admins, onClose, onSave }:
     name: admin?.name ?? '',
     email: admin?.email ?? '',
     phone: admin?.phone ?? '',
-    role: admin?.role ?? 'admin',
+    role: admin?.role === 'super_admin' ? 'super_admin' : 'admin',
   });
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');

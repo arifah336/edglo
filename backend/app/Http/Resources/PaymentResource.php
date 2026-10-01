@@ -19,6 +19,8 @@ class PaymentResource extends JsonResource
             'programFee' => $this->program_fee,
             'registrationFee' => $this->registration_fee,
             'bookFee' => $this->book_fee,
+            'otherFee' => $this->other_fee,
+            'discount' => $this->discount,
             'total' => $this->total,
             'dueDate' => $this->due_date?->toDateString(),
             'paidDate' => $this->paid_date?->toDateString(),

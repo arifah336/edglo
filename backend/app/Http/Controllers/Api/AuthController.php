@@ -13,16 +13,47 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function login(LoginRequest $request): JsonResponse
+    public function adminLogin(LoginRequest $request): JsonResponse
     {
+        return $this->authenticate(
+            $request,
+            ['super_admin', 'admin'],
+            'Akun ini tidak memiliki akses ke Portal Admin.',
+            'edglo-admin',
+        );
+    }
+
+    public function parentLogin(LoginRequest $request): JsonResponse
+    {
+        return $this->authenticate(
+            $request,
+            ['parent'],
+            'Akun ini tidak memiliki akses ke Portal Orang Tua.',
+            'edglo-parent',
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $allowedRoles
+     */
+    private function authenticate(
+        LoginRequest $request,
+        array $allowedRoles,
+        string $forbiddenMessage,
+        string $defaultDeviceName,
+    ): JsonResponse {
         $user = User::query()->where('email', $request->string('email'))->first();
 
         if (! $user || ! $user->is_active || ! Hash::check($request->string('password'), $user->password)) {
             throw ValidationException::withMessages(['email' => ['Email atau password tidak sesuai.']]);
         }
 
+        if (! in_array($user->role, $allowedRoles, true)) {
+            return response()->json(['message' => $forbiddenMessage], 403);
+        }
+
         $user->forceFill(['last_login_at' => now()])->save();
-        $token = $user->createToken($request->string('device_name')->value() ?: 'edglo-admin')->plainTextToken;
+        $token = $user->createToken($request->string('device_name')->value() ?: $defaultDeviceName)->plainTextToken;
 
         return response()->json([
             'message' => 'Login berhasil.',

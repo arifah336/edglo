@@ -19,11 +19,13 @@ export function createClassSessions(students: Student[]): ClassSession[] {
   students
     .filter((student) => student.status === 'active')
     .forEach((student) => {
+      const teacherId = student.teacherId;
+      if (!teacherId) return;
       student.schedules.forEach((schedule) => {
         const key = sessionKey({
           day: schedule.day,
           time: schedule.time,
-          teacherId: student.teacherId,
+          teacherId,
           programId: student.programId,
         });
         const existing = grouped.get(key);
@@ -39,7 +41,7 @@ export function createClassSessions(students: Student[]): ClassSession[] {
         grouped.set(key, {
           day: schedule.day,
           time: schedule.time,
-          teacherId: student.teacherId,
+          teacherId,
           programId: student.programId,
           studentIds: [student.id],
           room: `Ruang ${String.fromCharCode(65 + (grouped.size % 3))}`,
@@ -64,11 +66,13 @@ export function reconcileSessionsWithStudents(
   students
     .filter((student) => student.status === 'active')
     .forEach((student) => {
+      const teacherId = student.teacherId;
+      if (!teacherId) return;
       student.schedules.forEach((schedule) => {
         const key = sessionKey({
           day: schedule.day,
           time: schedule.time,
-          teacherId: student.teacherId,
+          teacherId,
           programId: student.programId,
         });
         const current = assignments.get(key) ?? [];

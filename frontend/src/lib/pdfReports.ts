@@ -81,7 +81,7 @@ function openPrintWindow(options: ReportOptions) {
     body { padding: 0; overflow: visible; }
     .report { width: calc(100% - 1px); max-width: 100%; overflow: visible; }
     .header { display: grid; grid-template-columns: 155px 1fr auto; align-items: center; gap: 18px; padding-bottom: 12px; border-bottom: 3px solid #1687A7; }
-    .logo { width: 142px; height: 56px; object-fit: contain; object-position: left center; }
+    .logo { width: 142px; height: 56px; object-fit: cover; object-position: center 44%; }
     .header-copy { padding-left: 17px; border-left: 1px solid #DDE7EA; }
     .header-copy small { color: #1687A7; font-size: 8px; font-weight: 800; letter-spacing: .12em; }
     .header-copy h1 { margin: 4px 0 3px; color: #173540; font-size: 19px; line-height: 1.1; }

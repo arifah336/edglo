@@ -26,12 +26,14 @@ export default function InvoiceModal({ students, programs, initialMonth, initial
   const [year, setYear] = useState(initialYear);
   const [includeRegistration, setIncludeRegistration] = useState(false);
   const [includeBook, setIncludeBook] = useState(false);
+  const [otherFee, setOtherFee] = useState(0);
+  const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState('');
   const student = students.find((item) => item.id === studentId);
   const program = programs.find((item) => item.id === student?.programId);
-  const registrationFee = includeRegistration ? REGISTRATION_FEE : 0;
-  const bookFee = includeBook ? BOOK_FEE : 0;
-  const total = (program?.price ?? 0) + registrationFee + bookFee;
+  const registrationFee = includeRegistration ? (student?.registrationFee ?? REGISTRATION_FEE) : 0;
+  const bookFee = includeBook ? (student?.bookFee ?? BOOK_FEE) : 0;
+  const total = Math.max(0, (program?.price ?? 0) + registrationFee + bookFee + otherFee - discount);
 
   const submit = () => {
     if (!student || !program) return;
@@ -42,6 +44,8 @@ export default function InvoiceModal({ students, programs, initialMonth, initial
       programFee: program.price,
       registrationFee,
       bookFee,
+      otherFee,
+      discount,
       total,
       dueDate: dueDateFor(student, month, year),
       notes: notes.trim() || undefined,
@@ -59,6 +63,8 @@ export default function InvoiceModal({ students, programs, initialMonth, initial
           <div className="field-wide invoice-program-preview"><span>Program</span><strong>{program?.name ?? '-'}</strong><b>{formatCurrency(program?.price ?? 0)} / bulan</b></div>
           <label className="fee-toggle"><input type="checkbox" checked={includeRegistration} onChange={(event) => setIncludeRegistration(event.target.checked)} /><span><strong>Biaya pendaftaran</strong><small>{formatCurrency(REGISTRATION_FEE)}</small></span></label>
           <label className="fee-toggle"><input type="checkbox" checked={includeBook} onChange={(event) => setIncludeBook(event.target.checked)} /><span><strong>Biaya buku</strong><small>{formatCurrency(BOOK_FEE)} / 2 bulan</small></span></label>
+          <div><label className="input-label">Biaya lainnya</label><input className="input-field" type="number" min="0" value={otherFee} onChange={(event) => setOtherFee(Math.max(0, Number(event.target.value) || 0))} /></div>
+          <div><label className="input-label">Diskon / promo</label><input className="input-field" type="number" min="0" value={discount} onChange={(event) => setDiscount(Math.max(0, Number(event.target.value) || 0))} /></div>
           <div className="field-wide"><label className="input-label">Catatan</label><textarea className="input-field" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Catatan pembayaran (opsional)" /></div>
         </div>
         <div className="invoice-total"><div><span>Jatuh tempo</span><strong>{dueDateFor(student, month, year)}</strong></div><div><span>Total tagihan</span><strong>{formatCurrency(total)}</strong></div></div>
