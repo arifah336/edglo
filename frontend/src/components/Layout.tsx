@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { TODAY } from '../data/mockData';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { formatIndonesiaDateTime } from '../lib/indonesiaTime';
 import type { AccountRole, Page } from '../types';
 
 type NavItem = {
@@ -199,6 +199,7 @@ type Props = {
 export default function Layout({ currentPage, onNavigate, onLogout, role, adminName, pendingRegistrations = 0, pendingScheduleRequests = 0, children }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [clock, setClock] = useState(() => new Date());
   const sidebarState = useSyncExternalStore(
     subscribeSidebar,
     getSidebarSnapshot,
@@ -207,12 +208,12 @@ export default function Layout({ currentPage, onNavigate, onLogout, role, adminN
   const sidebarCollapsed = sidebarState === 'collapsed';
   const contentRef = useRef<HTMLElement>(null);
   const pageMeta = PAGE_META[currentPage];
-  const currentDate = new Date(`${TODAY}T00:00:00`).toLocaleDateString('id-ID', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const currentDate = formatIndonesiaDateTime(clock);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const toggleTheme = () => {
     const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -324,7 +325,7 @@ export default function Layout({ currentPage, onNavigate, onLogout, role, adminN
             </button>
             <div className="date-chip">
               <Svg size={16}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></Svg>
-              <span>{currentDate}</span>
+              <span suppressHydrationWarning title="Waktu Indonesia Barat">{currentDate}</span>
             </div>
             <div className="profile-menu-wrap">
               <button

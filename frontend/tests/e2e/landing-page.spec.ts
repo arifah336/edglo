@@ -1,6 +1,15 @@
 import { expect, test } from '@playwright/test';
 
 test('landing page memakai program aktif yang diatur Admin', async ({ page }) => {
+  await page.route('**/backend-api/v1/public/schedule-slots', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [
+        { day: 'Senin', times: ['14:15', '17:45'] },
+        { day: 'Sabtu', times: ['09:30'] },
+      ] }),
+    });
+  });
   await page.route('**/backend-api/v1/public/programs', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -42,6 +51,12 @@ test('landing page memakai program aktif yang diatur Admin', async ({ page }) =>
   await expect(dialog.getByText('Rp 2.160.000', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Potongan 10%', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Biaya awal di luar paket', { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/AM adalah 00\.00-11\.59, sedangkan PM adalah 12\.00-23\.59/)).toBeVisible();
+  await expect(dialog.getByLabel('Senin', { exact: true })).toBeEnabled();
+  await expect(dialog.getByLabel('Jam pilihan Senin').locator('option[value="14:15"]')).toHaveText('14.15 WIB (02.15 PM)');
+  await expect(dialog.getByLabel('Jam pilihan Senin').locator('option[value="17:45"]')).toHaveText('17.45 WIB (05.45 PM)');
+  await expect(dialog.getByLabel('Jam pilihan Sabtu').locator('option[value="09:30"]')).toHaveText('09.30 WIB (09.30 AM)');
+  await expect(dialog.getByLabel('Selasa', { exact: true })).toBeDisabled();
 });
 
 test('daftar program diperbarui saat Admin menambah atau menghapus program', async ({ page }) => {
@@ -67,6 +82,12 @@ test('daftar program diperbarui saat Admin menambah atau menghapus program', asy
 
 test('landing page mengirim formulir calon murid tanpa membuat akun orang tua', async ({ page }) => {
   let submitted: Record<string, unknown> | undefined;
+  await page.route('**/backend-api/v1/public/schedule-slots', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [{ day: 'Senin', times: ['15:00', '17:45'] }] }),
+    });
+  });
   await page.route('**/backend-api/v1/registrations', async (route) => {
     submitted = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({

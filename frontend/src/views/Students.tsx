@@ -5,6 +5,7 @@ import { useToast } from '../components/ui/ToastProvider';
 import StudentTable from '../components/students/StudentTable';
 import DataPagination from '../components/ui/DataPagination';
 import { printStudentReport } from '../lib/pdfReports';
+import { formatUtcDateOnly, getIndonesiaToday, parseDateOnlyUtc } from '../lib/indonesiaTime';
 
 type StudentView = 'list' | 'form' | 'detail' | 'activation';
 type StudentSort = 'id-asc' | 'id-desc' | 'name-asc' | 'name-desc' | 'join-desc' | 'join-asc';
@@ -176,10 +177,10 @@ function programBillingAmount(program?: Program) {
 
 function packageEndFrom(start: string, months = 2) {
   if (!start) return '';
-  const date = new Date(`${start}T00:00:00`);
-  date.setMonth(date.getMonth() + months);
-  date.setDate(date.getDate() - 1);
-  return date.toISOString().slice(0, 10);
+  const date = new Date(parseDateOnlyUtc(start));
+  date.setUTCMonth(date.getUTCMonth() + months);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return formatUtcDateOnly(date);
 }
 
 function StudentForm({ student, registration, teachers, programs, onSave, onCancel }: { student?: Student; registration?: CourseRegistration; teachers: Teacher[]; programs: Program[]; onSave: (data: Partial<Student>) => void; onCancel: () => void }) {
@@ -414,7 +415,7 @@ function StudentActivation({ students, teachers, programs, setStudents, canManag
   const [modal, setModal] = useState<{ student: Student; action: 'off' | 'activate' } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<Student | null>(null);
   const [reason, setReason] = useState('');
-  const [offDate, setOffDate] = useState(new Date().toISOString().slice(0, 10));
+  const [offDate, setOffDate] = useState(() => getIndonesiaToday());
   const [activationEnd, setActivationEnd] = useState('');
   const [activationFee, setActivationFee] = useState(0);
   const [activationCycle, setActivationCycle] = useState(2);
@@ -425,7 +426,7 @@ function StudentActivation({ students, teachers, programs, setStudents, canManag
   const [statusPageSize, setStatusPageSize] = useState(10);
   const activeCount = students.filter((student) => student.status === 'active').length;
   const offCount = students.length - activeCount;
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = getIndonesiaToday().slice(0, 7);
   const recentChanges = students.reduce((count, student) => count + student.statusHistory.filter((history) => history.date.startsWith(currentMonth)).length, 0);
   const filtered = students.filter((student) => {
     if (statusFilter !== 'all' && student.status !== statusFilter) return false;
@@ -437,7 +438,7 @@ function StudentActivation({ students, teachers, programs, setStudents, canManag
   const statusPageStart = (safeStatusPage - 1) * statusPageSize;
   const visibleStatusStudents = filtered.slice(statusPageStart, statusPageStart + statusPageSize);
   const openAction = (student: Student, action: 'off' | 'activate') => {
-    const date = new Date().toISOString().slice(0, 10);
+    const date = getIndonesiaToday();
     setReason('');
     setOffDate(date);
     const billingCycle = student.billingCycleMonths ?? 2;
@@ -543,7 +544,7 @@ export default function Students({
     .filter((registration) => registration.studentId === selectedStudent?.id)
     .sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime())[0];
   const handleNavigate = (page: Page, id?: string) => { if (page === 'student-form') { setSubPage('form'); setSelectedId(id); } else if (page === 'student-detail') { setSubPage('detail'); setSelectedId(id); } else if (page === 'student-activation') setSubPage('activation'); };
-  const handleSave = (data: Partial<Student>) => { const isEditing = Boolean(selectedId); if (selectedId) onStudentsChange(students.map((s) => s.id === selectedId ? { ...s, ...data } : s)); else onStudentsChange([...students, { id: `S${String(students.length + 1).padStart(3, '0')}`, status: 'active', statusHistory: [{ date: '2026-07-31', action: 'activated', by: 'Admin' }], ...(data as Omit<Student, 'id' | 'status' | 'statusHistory'>) }]); notify({ tone: 'success', title: isEditing ? 'Data murid diperbarui' : 'Murid baru ditambahkan', message: `${data.fullName ?? 'Data murid'} berhasil disimpan.` }); setSubPage('list'); setSelectedId(undefined); };
+  const handleSave = (data: Partial<Student>) => { const isEditing = Boolean(selectedId); if (selectedId) onStudentsChange(students.map((s) => s.id === selectedId ? { ...s, ...data } : s)); else onStudentsChange([...students, { id: `S${String(students.length + 1).padStart(3, '0')}`, status: 'active', statusHistory: [{ date: getIndonesiaToday(), action: 'activated', by: 'Admin' }], ...(data as Omit<Student, 'id' | 'status' | 'statusHistory'>) }]); notify({ tone: 'success', title: isEditing ? 'Data murid diperbarui' : 'Murid baru ditambahkan', message: `${data.fullName ?? 'Data murid'} berhasil disimpan.` }); setSubPage('list'); setSelectedId(undefined); };
   if (subPage === 'activation') return <StudentActivation students={students} teachers={teachers} programs={programs} setStudents={onStudentsChange} canManage={canManage} />;
   if (subPage === 'form' && canManage) return <StudentForm student={selectedStudent} registration={selectedRegistration} teachers={teachers} programs={programs} onSave={handleSave} onCancel={() => { setSubPage('list'); setSelectedId(undefined); }} />;
   if (subPage === 'detail' && selectedStudent) return <StudentDetail student={selectedStudent} teachers={teachers} programs={programs} canManage={canManage} onEdit={() => setSubPage('form')} onBack={() => { setSubPage('list'); setSelectedId(undefined); }} />;

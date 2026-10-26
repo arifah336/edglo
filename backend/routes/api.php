@@ -23,6 +23,7 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/admin/login', [AuthController::class, 'adminLogin'])->middleware('throttle:5,1');
     Route::post('auth/teacher/login', [AuthController::class, 'teacherLogin'])->middleware('throttle:5,1');
     Route::get('public/programs', [ProgramController::class, 'publicIndex']);
+    Route::get('public/schedule-slots', [ClassSessionController::class, 'publicSlots']);
     Route::post('registrations', PublicRegistrationController::class)->middleware('throttle:5,1');
 
     Route::middleware('auth:sanctum')->group(function () {

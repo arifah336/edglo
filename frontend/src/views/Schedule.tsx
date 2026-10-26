@@ -4,12 +4,12 @@ import {
   PROGRAMS,
   STUDENTS,
   TEACHERS,
-  getTimesForDay,
 } from '../data/mockData';
 import type { ClassSession, Program, Student, Teacher } from '../types';
 import { createClassSessions } from '../data/scheduleState';
 import { useToast } from '../components/ui/ToastProvider';
 import ScheduleTable from '../components/schedule/ScheduleTable';
+import { formatTime12Hour, formatTimeLabel } from '../lib/timeFormat';
 
 const DAY_THEME: Record<string, { color: string; soft: string; short: string }> = {
   Senin: { color: '#1687A7', soft: '#E7F5F8', short: 'Sen' },
@@ -50,11 +50,15 @@ function ScheduleIcon({ children, size = 18 }: { children: ReactNode; size?: num
   );
 }
 
-function createEmptyForm(day = 'Senin', teachers = TEACHERS, programs = PROGRAMS): ScheduleForm {
+function createEmptyForm(day = 'Senin', teachers = TEACHERS, programs = PROGRAMS, sessions: ClassSession[] = []): ScheduleForm {
   const activeTeachers = teachers.filter((teacher) => teacher.status === 'active');
+  const firstExistingTime = sessions
+    .filter((session) => session.day === day)
+    .map((session) => session.time)
+    .sort((first, second) => timeToMinutes(first) - timeToMinutes(second))[0];
   return {
     day,
-    time: getTimesForDay(day)[0],
+    time: firstExistingTime ?? '09.00',
     teacherId: activeTeachers[0]?.id ?? '',
     programId: programs[0]?.id ?? '',
     studentIds: [],
@@ -93,7 +97,7 @@ export default function Schedule(props: Props = {}) {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; sessionId?: string } | null>(null);
-  const [form, setForm] = useState<ScheduleForm>(() => createEmptyForm('Senin', teachers, programs));
+  const [form, setForm] = useState<ScheduleForm>(() => createEmptyForm('Senin', teachers, programs, sessions));
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ClassSession | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -127,6 +131,9 @@ export default function Schedule(props: Props = {}) {
   const usedTeacherCount = new Set(sessions.map((session) => session.teacherId)).size;
   const totalAssignments = sessions.reduce((sum, session) => sum + session.studentIds.length, 0);
   const occupiedSlots = new Set(sessions.map((session) => `${session.day}|${session.time}`)).size;
+  const activeDayTimes = Array.from(new Set(
+    sessions.filter((session) => session.day === form.day).map((session) => session.time),
+  )).sort((first, second) => timeToMinutes(first) - timeToMinutes(second));
 
   const teacherWorkload = activeTeachers.map((teacher) => {
     const teacherSessions = sessions.filter((session) => session.teacherId === teacher.id);
@@ -139,7 +146,7 @@ export default function Schedule(props: Props = {}) {
   });
 
   const openAdd = (day = dayFilter === 'all' ? 'Senin' : dayFilter) => {
-    setForm(createEmptyForm(day, teachers, programs));
+    setForm(createEmptyForm(day, teachers, programs, sessions));
     setFormError('');
     setEditor({ mode: 'add' });
   };
@@ -160,9 +167,14 @@ export default function Schedule(props: Props = {}) {
   };
 
   const updateDay = (day: string) => {
+    const firstExistingTime = sessions
+      .filter((session) => session.day === day)
+      .map((session) => session.time)
+      .sort((first, second) => timeToMinutes(first) - timeToMinutes(second))[0];
     setForm((current) => ({
       ...current,
       day,
+      time: firstExistingTime ?? current.time,
     }));
     setFormError('');
   };
@@ -271,7 +283,7 @@ export default function Schedule(props: Props = {}) {
         <div>
           <span className="eyebrow">PENGELOLAAN KELAS</span>
           <h2>Atur jadwal mengajar mingguan</h2>
-          <p>Kelola jam kelas, guru pengajar, program, ruang, dan murid dalam setiap sesi.</p>
+          <p>Kelola jam kelas, guru pengajar, program, ruang, dan murid. Jam kelas aktif otomatis tersedia pada formulir pendaftaran.</p>
         </div>
         <div className="schedule-heading-actions">
           {props.onDownload && <button type="button" className="btn-secondary" onClick={() => void downloadSchedule()} disabled={downloading}><ScheduleIcon size={17}><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></ScheduleIcon>{downloading ? 'Menyiapkan...' : 'Unduh Jadwal PDF'}</button>}
@@ -474,7 +486,9 @@ export default function Schedule(props: Props = {}) {
               <div>
                 <label className="input-label">Jam *</label>
                 <input className="input-field" type="time" step={300} value={form.time.replace('.', ':')} onChange={(event) => { setForm((current) => ({ ...current, time: event.target.value.replace(':', '.') })); setFormError(''); }} />
-                <div className="schedule-time-presets"><span>Jam rekomendasi:</span>{getTimesForDay(form.day).map((time) => <button type="button" className={form.time === time ? 'active' : ''} key={time} onClick={() => setForm((current) => ({ ...current, time }))}>{time}</button>)}</div>
+                {form.time && <div className="schedule-time-preview"><strong>{formatTimeLabel(form.time)}</strong><span>{Number(form.time.replace('.', ':').split(':')[0]) < 12 ? 'AM - sebelum tengah hari' : 'PM - setelah tengah hari'}</span></div>}
+                <div className="schedule-time-presets"><span>Jam yang sudah digunakan:</span>{activeDayTimes.length ? activeDayTimes.map((time) => <button type="button" className={form.time === time ? 'active' : ''} key={time} title={formatTimeLabel(time)} onClick={() => setForm((current) => ({ ...current, time }))}>{time} / {formatTime12Hour(time)}</button>) : <small>Belum ada. Ketik jam baru.</small>}</div>
+                <small className="schedule-slot-hint">AM: 00.00-11.59. PM: 12.00-23.59. Jam baru muncul di pendaftaran setelah kelas disimpan.</small>
               </div>
               <div>
                 <label className="input-label">Guru *</label>

@@ -1,6 +1,7 @@
 import type { Payment, Program, Student } from '../../types';
-import { MONTH_NAMES, TODAY, formatCurrency, formatDate } from '../../data/mockData';
+import { MONTH_NAMES, formatCurrency, formatDate } from '../../data/mockData';
 import { getPaymentDueState } from '../../lib/paymentDue';
+import { getIndonesiaToday } from '../../lib/indonesiaTime';
 
 type Props = {
   payments: Payment[];
@@ -18,6 +19,8 @@ export function invoiceNumber(payment: Payment) {
 }
 
 export default function PaymentTable({ payments, students, programs, mode, onView, onMarkPaid, startIndex = 0, canManage = true }: Props) {
+  const today = getIndonesiaToday();
+
   return (
     <div className="data-table-shell finance-table-shell">
       <table className="data-table finance-table">
@@ -31,7 +34,7 @@ export default function PaymentTable({ payments, students, programs, mode, onVie
           {payments.map((payment, rowIndex) => {
             const student = students.find((item) => item.id === payment.studentId);
             const program = student ? programs.find((item) => item.id === student.programId) : undefined;
-            const dueState = getPaymentDueState(payment, TODAY);
+            const dueState = getPaymentDueState(payment, today);
 
             return (
               <tr key={payment.id}>

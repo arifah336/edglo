@@ -153,6 +153,7 @@ export type CourseRegistrationPayload = {
 };
 
 export type RegistrationResponse = { message: string; registration: CourseRegistration };
+export type PublicScheduleSlot = { day: string; times: string[] };
 
 export const api = {
   loginAdmin: (email: string, password: string) => request<LoginResponse>('/auth/admin/login', undefined, {
@@ -175,6 +176,7 @@ export const api = {
     body: JSON.stringify(data),
   }),
   publicPrograms: () => collection(request<Collection<Program>>('/public/programs')),
+  publicScheduleSlots: () => collection(request<Collection<PublicScheduleSlot>>('/public/schedule-slots')),
   parentOverview: (token: string) => resource(request<Resource<ParentOverview>>('/parent/overview', token)),
   createAcademicRequest: (token: string, data: ScheduleChangeRequestPayload) => resource(request<Resource<ScheduleChangeRequest>>('/parent/academic-requests', token, {
     method: 'POST',

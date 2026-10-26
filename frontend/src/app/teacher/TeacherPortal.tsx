@@ -6,6 +6,7 @@ import { CalendarDays, ChevronDown, LogOut, Mail, Menu, Moon, Sun, UserRound } f
 import type { StudentProgressLog, TeacherOverview, TeacherPortalClass } from '../../types';
 import { api } from '../../lib/api';
 import { getAuthSnapshot, getServerAuthSnapshot, parseAuthSession, subscribeAuth, writeAuthSession } from '../../lib/authSession';
+import { formatIndonesiaDate, getIndonesiaDateParts, getIndonesiaToday } from '../../lib/indonesiaTime';
 import SessionLoading from '../../components/auth/SessionLoading';
 import TeacherDashboard from './components/TeacherDashboard';
 import TeacherProgress from './components/TeacherProgress';
@@ -33,9 +34,8 @@ function fallbackClasses(overview: TeacherOverview): TeacherPortalClass[] {
   })));
 }
 
-function upcomingClasses(classes: TeacherPortalClass[], now: Date) {
-  const currentDay = (now.getDay() + 6) % 7;
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+function upcomingClasses(classes: TeacherPortalClass[], currentDayName: string, currentMinutes: number) {
+  const currentDay = Math.max(0, DAYS.indexOf(currentDayName));
   return [...classes].sort((a, b) => {
     const score = (item: TeacherPortalClass) => {
       const dayIndex = Math.max(0, DAYS.indexOf(item.day));
@@ -64,7 +64,7 @@ export default function TeacherPortal() {
   const [selectedId, setSelectedId] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ activityDate: new Date().toISOString().slice(0, 10), activityType: 'reading' as StudentProgressLog['activityType'], points: 10, notes: '' });
+  const [form, setForm] = useState({ activityDate: getIndonesiaToday(), activityType: 'reading' as StudentProgressLog['activityType'], points: 10, notes: '' });
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const loadOverview = useCallback(async () => {
@@ -146,15 +146,16 @@ export default function TeacherPortal() {
   };
 
   const now = useMemo(() => new Date(), []);
-  const todayName = DAYS[(now.getDay() + 6) % 7];
+  const indonesiaNow = useMemo(() => getIndonesiaDateParts(now), [now]);
+  const todayName = formatIndonesiaDate(now, { weekday: 'long' });
   const classes = useMemo(() => {
     if (!overview) return [];
     return overview.classes?.length ? overview.classes : fallbackClasses(overview);
   }, [overview]);
   const todayClasses = useMemo(() => classes.filter((item) => item.day === todayName).sort((a, b) => a.time.localeCompare(b.time)), [classes, todayName]);
-  const nextClasses = useMemo(() => upcomingClasses(classes, now), [classes, now]);
+  const nextClasses = useMemo(() => upcomingClasses(classes, todayName, indonesiaNow.hour * 60 + indonesiaNow.minute), [classes, indonesiaNow.hour, indonesiaNow.minute, todayName]);
   const recentActivities = useMemo(() => overview?.students.flatMap((student) => student.progressLogs.map((log) => ({ ...log, studentName: student.fullName }))).sort((a, b) => b.activityDate.localeCompare(a.activityDate)) ?? [], [overview]);
-  const todayIso = now.toISOString().slice(0, 10);
+  const todayIso = indonesiaNow.isoDate;
   const todayActivityCount = recentActivities.filter((activity) => activity.activityDate === todayIso).length;
 
   const recordProgress = (studentId?: string) => {
@@ -208,7 +209,7 @@ export default function TeacherPortal() {
               <span className="teacher-theme-icon teacher-theme-icon-dark"><Moon size={18} /></span>
               <span className="teacher-theme-icon teacher-theme-icon-light"><Sun size={18} /></span>
             </button>
-            <div className="teacher-portal-date"><CalendarDays size={18} /><span><small>{todayName}</small>{now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</span></div>
+            <div className="teacher-portal-date"><CalendarDays size={18} /><span><small>{todayName}</small>{formatIndonesiaDate(now, { day: '2-digit', month: 'long', year: 'numeric' })}</span></div>
             <div className="teacher-profile-menu" ref={profileMenuRef}>
               <button type="button" className="teacher-profile-trigger" aria-label="Buka menu profil" aria-haspopup="menu" aria-expanded={profileOpen} onClick={() => setProfileOpen((open) => !open)}>
                 <span style={overview.teacher.photo ? { backgroundImage: `url(${overview.teacher.photo})` } : undefined}>{overview.teacher.photo ? '' : overview.teacher.fullName.charAt(0)}</span>

@@ -5,6 +5,7 @@ import { CalendarCheck2, CalendarClock, CheckCircle2, ClipboardX, Plus, Trash2, 
 import type { ClassSession, MakeUpSchedule, Student, StudentAbsence, Teacher, TeacherAttendance, UserRole } from '../types';
 import { useToast } from '../components/ui/ToastProvider';
 import { formatDate } from '../data/mockData';
+import { getIndonesiaDateParts, parseDateOnlyUtc } from '../lib/indonesiaTime';
 
 type Props = {
   role: UserRole;
@@ -25,16 +26,17 @@ type Props = {
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const REPLACEMENT_TIMES = ['09:00', '10:30', '11:00', '12:00', '13:30', '15:00', '16:30', '18:00', '19:30'];
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-const today = new Date().toISOString().slice(0, 10);
 
 export default function Attendance({ role, students, teachers, sessions, teacherAttendances, studentAbsences, makeUpSchedules, onSaveTeacherAttendance, onDeleteTeacherAttendance, onSaveStudentAbsence, onDeleteStudentAbsence, onSaveMakeUpSchedule, onDeleteMakeUpSchedule }: Props) {
   const { notify } = useToast();
+  const indonesiaNow = getIndonesiaDateParts();
+  const today = indonesiaNow.isoDate;
   const canManageTeacher = role === 'super_admin';
   const canManageStudent = role === 'admin';
   const [tab, setTab] = useState<'teacher' | 'student' | 'makeup'>(role === 'super_admin' ? 'teacher' : 'student');
   const canManage = tab === 'teacher' ? canManageTeacher : canManageStudent;
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(() => indonesiaNow.month);
+  const [year, setYear] = useState(() => indonesiaNow.year);
   const [saving, setSaving] = useState(false);
   const [teacherForm, setTeacherForm] = useState({ classSessionId: sessions[0]?.id ?? '', attendanceDate: today, status: 'present' as TeacherAttendance['status'], notes: '' });
   const [absenceForm, setAbsenceForm] = useState({ classSessionId: sessions[0]?.id ?? '', studentId: '', absenceDate: today, reason: '' });
@@ -42,8 +44,8 @@ export default function Attendance({ role, students, teachers, sessions, teacher
   const [makeUpForm, setMakeUpForm] = useState({ scheduledDate: today, time: '15.00', room: 'Ruang 1', notes: '' });
 
   const inPeriod = (date: string) => {
-    const value = new Date(`${date}T00:00:00`);
-    return value.getMonth() + 1 === month && value.getFullYear() === year;
+    const [dateYear, dateMonth] = date.split('-').map(Number);
+    return dateMonth === month && dateYear === year;
   };
   const periodTeacherAttendances = teacherAttendances.filter((item) => inPeriod(item.attendanceDate));
   const periodAbsences = studentAbsences.filter((item) => inPeriod(item.absenceDate));
@@ -58,7 +60,7 @@ export default function Attendance({ role, students, teachers, sessions, teacher
   const availableTimes = (absence: StudentAbsence, date: string) => {
     const teacherId = absence.session?.teacherId ?? sessions.find((item) => item.id === absence.classSessionId)?.teacherId;
     if (!teacherId || !date) return REPLACEMENT_TIMES;
-    const day = DAYS[new Date(`${date}T00:00:00`).getDay()];
+    const day = DAYS[new Date(parseDateOnlyUtc(date)).getUTCDay()];
     const occupied = new Set([
       ...sessions.filter((item) => item.teacherId === teacherId && item.day === day).map((item) => item.time.replace('.', ':')),
       ...makeUpSchedules.filter((item) => item.teacherId === teacherId && item.scheduledDate === date && item.status !== 'cancelled').map((item) => item.time.replace('.', ':')),
@@ -104,7 +106,7 @@ export default function Attendance({ role, students, teachers, sessions, teacher
     <div className="attendance-page">
       <div className="module-heading">
         <div><span className="eyebrow">KEHADIRAN & PENGGANTI</span><h2>Kontrol sesi belajar</h2><p>Rekap kehadiran guru, ketidakhadiran murid, dan jadwal pengganti dalam satu periode.</p></div>
-        <div className="period-controls"><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTHS.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{[2025, 2026, 2027].map((item) => <option key={item}>{item}</option>)}</select></div>
+        <div className="period-controls"><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTHS.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{[indonesiaNow.year - 1, indonesiaNow.year, indonesiaNow.year + 1].map((item) => <option key={item}>{item}</option>)}</select></div>
       </div>
 
       <div className="attendance-summary-grid">

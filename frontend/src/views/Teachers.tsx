@@ -6,6 +6,7 @@ import { useToast } from '../components/ui/ToastProvider';
 import TeacherTable from '../components/teachers/TeacherTable';
 import TeacherInsights from '../components/teachers/TeacherInsights';
 import DataPagination from '../components/ui/DataPagination';
+import { getIndonesiaToday } from '../lib/indonesiaTime';
 import { printTeacherReport } from '../lib/pdfReports';
 
 type TeacherView = 'list' | 'form' | 'detail' | 'activation';
@@ -224,7 +225,7 @@ function TeacherActivation({ teachers, setTeachers, canManage }: { teachers: Tea
   const { notify } = useToast();
   const [modal, setModal] = useState<{ teacher: Teacher; action: 'off' | 'activate' } | null>(null);
   const [reason, setReason] = useState('');
-  const [offDate, setOffDate] = useState(new Date().toISOString().slice(0, 10));
+  const [offDate, setOffDate] = useState(() => getIndonesiaToday());
   const [statusPage, setStatusPage] = useState(1);
   const [statusPageSize, setStatusPageSize] = useState(10);
   const statusTotalPages = Math.max(1, Math.ceil(teachers.length / statusPageSize));
@@ -243,7 +244,7 @@ export default function Teachers({ initialView = 'list', initialTeacherId, stude
   const [subPage, setSubPage] = useState<TeacherView>(initialView);
   const [selectedId, setSelectedId] = useState<string | undefined>(initialTeacherId);
   const selectedTeacher = teachers.find((t) => t.id === selectedId);
-  const handleSave = (data: Partial<Teacher>) => { const isEditing = Boolean(selectedId); if (selectedId) setTeachers(teachers.map((t) => t.id === selectedId ? { ...t, ...data } : t)); else setTeachers([...teachers, { id: `temp-teacher-${Date.now()}-${Math.random().toString(36).slice(2)}`, status: 'active', statusHistory: [{ date: new Date().toISOString().slice(0, 10), action: 'activated', by: 'Super Admin (Owner)' }], ...(data as Omit<Teacher, 'id' | 'status' | 'statusHistory'>) }]); notify({ tone: 'success', title: isEditing ? 'Data guru diperbarui' : 'Guru baru ditambahkan', message: `${data.fullName ?? 'Data guru'} sedang disimpan ke backend.` }); setSubPage('list'); setSelectedId(undefined); };
+  const handleSave = (data: Partial<Teacher>) => { const isEditing = Boolean(selectedId); if (selectedId) setTeachers(teachers.map((t) => t.id === selectedId ? { ...t, ...data } : t)); else setTeachers([...teachers, { id: `temp-teacher-${Date.now()}-${Math.random().toString(36).slice(2)}`, status: 'active', statusHistory: [{ date: getIndonesiaToday(), action: 'activated', by: 'Super Admin (Owner)' }], ...(data as Omit<Teacher, 'id' | 'status' | 'statusHistory'>) }]); notify({ tone: 'success', title: isEditing ? 'Data guru diperbarui' : 'Guru baru ditambahkan', message: `${data.fullName ?? 'Data guru'} sedang disimpan ke backend.` }); setSubPage('list'); setSelectedId(undefined); };
   if (subPage === 'activation') return <div className="teacher-status-dashboard"><TeacherStatusOverview teachers={teachers} sessions={sessions} /><TeacherActivation teachers={teachers} setTeachers={setTeachers} canManage={canManage} /></div>;
   if (subPage === 'form' && canManage) return <TeacherForm teacher={selectedTeacher} onSave={handleSave} onCancel={() => { setSubPage('list'); setSelectedId(undefined); }} />;
   if (subPage === 'detail' && selectedTeacher) return <TeacherDetail teacher={selectedTeacher} canManage={canManage} onEdit={() => setSubPage('form')} onBack={() => { setSubPage('list'); setSelectedId(undefined); }} />;

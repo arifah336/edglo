@@ -39,6 +39,28 @@ class ClassSessionController extends Controller
         return ClassSessionResource::collection($query->orderBy('day')->orderBy('time')->paginate($perPage));
     }
 
+    public function publicSlots(): JsonResponse
+    {
+        $dayOrder = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        $sessions = ClassSession::query()
+            ->where('is_active', true)
+            ->get(['day', 'time']);
+
+        $slots = collect($dayOrder)->map(function (string $day) use ($sessions) {
+            $times = $sessions
+                ->where('day', $day)
+                ->pluck('time')
+                ->map(fn (string $time) => substr(str_replace('.', ':', $time), 0, 5))
+                ->unique()
+                ->sort()
+                ->values();
+
+            return ['day' => $day, 'times' => $times];
+        })->filter(fn (array $slot) => $slot['times']->isNotEmpty())->values();
+
+        return response()->json(['data' => $slots]);
+    }
+
     public function store(ClassSessionRequest $request): JsonResponse
     {
         $data = $this->normalize($request->validated());

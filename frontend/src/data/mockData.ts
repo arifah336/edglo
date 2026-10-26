@@ -1,6 +1,8 @@
 ﻿import type { Admin, Payment, Program, Student, Teacher } from '../types';
 
-export const TODAY = '2026-07-31';
+import { formatIndonesiaDate, formatUtcDateOnly, getIndonesiaToday, parseDateOnlyUtc } from '../lib/indonesiaTime';
+
+export const TODAY = getIndonesiaToday();
 export const REGISTRATION_FEE = 100000;
 export const BOOK_FEE = 100000;
 
@@ -70,24 +72,23 @@ export const getProgramById = (id: string) => PROGRAMS.find((p) => p.id === id);
 export const getTeacherById = (id: string) => TEACHERS.find((t) => t.id === id);
 export const getStudentById = (id: string) => STUDENTS.find((s) => s.id === id);
 export const formatCurrency = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
-export const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+export const formatDate = (dateStr: string) => formatIndonesiaDate(dateStr);
 
 export const generatePayments = (): Payment[] => {
   const payments: Payment[] = [];
   let id = 1;
-  const today = new Date(TODAY);
+  const today = parseDateOnlyUtc(TODAY);
 
   STUDENTS.forEach((student) => {
     const program = getProgramById(student.programId);
     if (!program) return;
-    const joinDate = new Date(student.joinDate);
+    const joinDate = new Date(parseDateOnlyUtc(student.joinDate));
 
     for (let m = 0; m <= 6; m += 1) {
-      const date = new Date(joinDate);
-      date.setMonth(joinDate.getMonth() + m);
-      if (date > today) break;
+      const date = new Date(Date.UTC(joinDate.getUTCFullYear(), joinDate.getUTCMonth() + m, 1));
+      if (date.getTime() > today) break;
       const dueDate = new Date(date);
-      dueDate.setDate(joinDate.getDate());
+      dueDate.setUTCDate(joinDate.getUTCDate());
       const registrationFee = m === 0 ? REGISTRATION_FEE : 0;
       const bookFee = m % 2 === 0 ? BOOK_FEE : 0;
       const total = program.price + registrationFee + bookFee;
@@ -95,15 +96,15 @@ export const generatePayments = (): Payment[] => {
       payments.push({
         id: `PAY${String(id++).padStart(4, '0')}`,
         studentId: student.id,
-        month: date.getMonth() + 1,
-        year: date.getFullYear(),
+        month: date.getUTCMonth() + 1,
+        year: date.getUTCFullYear(),
         programFee: program.price,
         registrationFee,
         bookFee,
         total,
-        dueDate: dueDate.toISOString().split('T')[0],
-        paidDate: isPaid ? dueDate.toISOString().split('T')[0] : undefined,
-        status: isPaid ? 'paid' : dueDate < today ? 'overdue' : 'pending',
+        dueDate: formatUtcDateOnly(dueDate),
+        paidDate: isPaid ? formatUtcDateOnly(dueDate) : undefined,
+        status: isPaid ? 'paid' : dueDate.getTime() < today ? 'overdue' : 'pending',
       });
     }
   });

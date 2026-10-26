@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Payment, PaymentStatus, Program, Student } from '../types';
-import { MONTH_NAMES, PAYMENTS, PROGRAMS, STUDENTS, TODAY, formatCurrency } from '../data/mockData';
+import { MONTH_NAMES, PAYMENTS, PROGRAMS, STUDENTS, formatCurrency } from '../data/mockData';
 import PaymentTable from '../components/finance/PaymentTable';
 import InvoiceModal, { type NewInvoice } from '../components/finance/InvoiceModal';
 import InvoiceDetailModal from '../components/finance/InvoiceDetailModal';
@@ -9,10 +9,9 @@ import { useToast } from '../components/ui/ToastProvider';
 import DataPagination from '../components/ui/DataPagination';
 import { printInvoiceReport, printMonthlyFinanceReport, printYearlyFinanceReport } from '../lib/pdfReports';
 import { getPaymentDueState } from '../lib/paymentDue';
+import { getIndonesiaDateParts } from '../lib/indonesiaTime';
 
 type Props = { mode: 'monthly' | 'yearly'; students?: Student[]; programs?: Program[]; payments?: Payment[]; onPaymentsChange?: (payments: Payment[]) => void; canManage?: boolean };
-const CURRENT_MONTH = 7;
-const CURRENT_YEAR = 2026;
 const PAYMENT_CLONE = PAYMENTS.map((payment) => ({ ...payment }));
 
 function nextPaymentId(payments: Payment[]) {
@@ -22,11 +21,13 @@ function nextPaymentId(payments: Payment[]) {
 
 export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS, payments: controlledPayments, onPaymentsChange, canManage = true }: Props) {
   const { notify } = useToast();
+  const indonesiaNow = getIndonesiaDateParts();
+  const todayIso = indonesiaNow.isoDate;
   const [fallbackPayments, setFallbackPayments] = useState(PAYMENT_CLONE);
   const payments = controlledPayments ?? fallbackPayments;
   const updatePayments = onPaymentsChange ?? setFallbackPayments;
-  const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
-  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+  const [selectedMonth, setSelectedMonth] = useState(() => indonesiaNow.month);
+  const [selectedYear, setSelectedYear] = useState(() => indonesiaNow.year);
   const [filterProgram, setFilterProgram] = useState('all');
   const [filterStatus, setFilterStatus] = useState<'all' | PaymentStatus>('all');
   const [search, setSearch] = useState('');
@@ -38,17 +39,24 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
   const filtered = useMemo(() => payments.filter((payment) => {
     if (mode === 'monthly' && (payment.month !== selectedMonth || payment.year !== selectedYear)) return false;
     if (mode === 'yearly' && payment.year !== selectedYear) return false;
-    if (filterStatus !== 'all' && getPaymentDueState(payment, TODAY).status !== filterStatus) return false;
+    if (filterStatus !== 'all' && getPaymentDueState(payment, todayIso).status !== filterStatus) return false;
     const student = students.find((item) => item.id === payment.studentId);
     if (filterProgram !== 'all' && student?.programId !== filterProgram) return false;
     if (search && !student?.fullName.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [filterProgram, filterStatus, mode, payments, search, selectedMonth, selectedYear, students]);
+  }), [filterProgram, filterStatus, mode, payments, search, selectedMonth, selectedYear, students, todayIso]);
 
-  const totalIncome = filtered.filter((payment) => getPaymentDueState(payment, TODAY).status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
+  const totalIncome = filtered.filter((payment) => getPaymentDueState(payment, todayIso).status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
   const totalBilled = filtered.reduce((sum, payment) => sum + payment.total, 0);
-  const totalPending = filtered.filter((payment) => getPaymentDueState(payment, TODAY).status !== 'paid').reduce((sum, payment) => sum + payment.total, 0);
-  const overdueCount = filtered.filter((payment) => getPaymentDueState(payment, TODAY).status === 'overdue').length;
+  const totalPending = filtered.filter((payment) => getPaymentDueState(payment, todayIso).status !== 'paid').reduce((sum, payment) => sum + payment.total, 0);
+  const overdueCount = filtered.filter((payment) => getPaymentDueState(payment, todayIso).status === 'overdue').length;
+  const availableYears = Array.from(new Set([
+    indonesiaNow.year - 2,
+    indonesiaNow.year - 1,
+    indonesiaNow.year,
+    indonesiaNow.year + 1,
+    ...payments.map((payment) => payment.year),
+  ])).sort((first, second) => first - second);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * pageSize;
@@ -60,7 +68,7 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
       notify({ tone: 'warning', title: 'Tagihan sudah tersedia', message: 'Murid tersebut sudah memiliki tagihan pada periode yang dipilih.' });
       return;
     }
-    const next: Payment = { ...invoice, id: nextPaymentId(payments), status: invoice.dueDate < TODAY ? 'overdue' : 'pending' };
+    const next: Payment = { ...invoice, id: nextPaymentId(payments), status: invoice.dueDate < todayIso ? 'overdue' : 'pending' };
     updatePayments([next, ...payments]);
     setShowCreate(false);
     setSelectedMonth(invoice.month);
@@ -70,9 +78,9 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
   };
 
   const markPaid = (payment: Payment) => {
-    const next = payments.map((item) => item.id === payment.id ? { ...item, status: 'paid' as const, paidDate: TODAY } : item);
+    const next = payments.map((item) => item.id === payment.id ? { ...item, status: 'paid' as const, paidDate: todayIso } : item);
     updatePayments(next);
-    setSelectedPayment((current) => current?.id === payment.id ? { ...payment, status: 'paid', paidDate: TODAY } : current);
+    setSelectedPayment((current) => current?.id === payment.id ? { ...payment, status: 'paid', paidDate: todayIso } : current);
     notify({ tone: 'success', title: 'Pembayaran diterima', message: `${formatCurrency(payment.total)} telah dicatat sebagai pemasukan.` });
   };
 
@@ -99,7 +107,7 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
       </div>
 
       <div className="finance-summary-grid">
-        {[{ label: 'Total Ditagihkan', value: formatCurrency(totalBilled), hint: `${filtered.length} tagihan`, tone: 'blue' }, { label: 'Sudah Diterima', value: formatCurrency(totalIncome), hint: totalBilled ? `${Math.round((totalIncome / totalBilled) * 100)}% tertagih` : '0% tertagih', tone: 'green' }, { label: 'Belum Terbayar', value: formatCurrency(totalPending), hint: `${filtered.filter((item) => getPaymentDueState(item, TODAY).status !== 'paid').length} tagihan`, tone: 'yellow' }, { label: 'Terlambat', value: String(overdueCount), hint: 'Dihitung otomatis dari jatuh tempo', tone: 'red' }].map((item) => <div className={`finance-summary-card tone-${item.tone}`} key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.hint}</small></div>)}
+        {[{ label: 'Total Ditagihkan', value: formatCurrency(totalBilled), hint: `${filtered.length} tagihan`, tone: 'blue' }, { label: 'Sudah Diterima', value: formatCurrency(totalIncome), hint: totalBilled ? `${Math.round((totalIncome / totalBilled) * 100)}% tertagih` : '0% tertagih', tone: 'green' }, { label: 'Belum Terbayar', value: formatCurrency(totalPending), hint: `${filtered.filter((item) => getPaymentDueState(item, todayIso).status !== 'paid').length} tagihan`, tone: 'yellow' }, { label: 'Terlambat', value: String(overdueCount), hint: 'Dihitung otomatis dari jatuh tempo', tone: 'red' }].map((item) => <div className={`finance-summary-card tone-${item.tone}`} key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.hint}</small></div>)}
       </div>
 
       {mode === 'yearly' && <YearlyOverview payments={payments} year={selectedYear} />}
@@ -107,7 +115,7 @@ export default function Finance({ mode, students = STUDENTS, programs = PROGRAMS
       <div className="finance-toolbar card">
         <div className="toolbar-search"><span>⌕</span><input value={search} onChange={(event) => changeFilter(() => setSearch(event.target.value))} placeholder="Cari nama murid..." /></div>
         {mode === 'monthly' && <select className="input-field" value={selectedMonth} onChange={(event) => changeFilter(() => setSelectedMonth(Number(event.target.value)))}>{MONTH_NAMES.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select>}
-        <select className="input-field" value={selectedYear} onChange={(event) => changeFilter(() => setSelectedYear(Number(event.target.value)))}>{[2024, 2025, 2026, 2027].map((year) => <option value={year} key={year}>{year}</option>)}</select>
+        <select className="input-field" value={selectedYear} onChange={(event) => changeFilter(() => setSelectedYear(Number(event.target.value)))}>{availableYears.map((year) => <option value={year} key={year}>{year}</option>)}</select>
         <select className="input-field" value={filterProgram} onChange={(event) => changeFilter(() => setFilterProgram(event.target.value))}><option value="all">Semua Program</option>{programs.map((program) => <option value={program.id} key={program.id}>{program.name}</option>)}</select>
         <select className="input-field" value={filterStatus} onChange={(event) => changeFilter(() => setFilterStatus(event.target.value as 'all' | PaymentStatus))}><option value="all">Semua Status</option><option value="paid">Lunas</option><option value="pending">Menunggu</option><option value="overdue">Terlambat</option></select>
         <span className="toolbar-count">{filtered.length} data</span>

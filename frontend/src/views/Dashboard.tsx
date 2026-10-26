@@ -5,10 +5,10 @@ import {
   PROGRAMS,
   STUDENTS,
   TEACHERS,
-  TODAY,
   formatCurrency,
   formatDate,
 } from '../data/mockData';
+import { getIndonesiaDateParts, parseDateOnlyUtc } from '../lib/indonesiaTime';
 import type { Page, Payment, Program, Student, Teacher } from '../types';
 
 type Props = {
@@ -18,11 +18,6 @@ type Props = {
   payments?: Payment[];
   programs?: Program[];
 };
-
-const today = new Date(`${TODAY}T00:00:00`);
-const todayMonth = today.getMonth() + 1;
-const todayYear = today.getFullYear();
-const previousMonthDate = new Date(todayYear, todayMonth - 2, 1);
 
 type ChartMonth = {
   label: string;
@@ -194,12 +189,12 @@ function RevenueChart({ data }: { data: ChartMonth[] }) {
   );
 }
 
-function PaymentReminder({ payment, students, programs }: { payment: Payment; students: Student[]; programs: Program[] }) {
+function PaymentReminder({ payment, students, programs, referenceDate }: { payment: Payment; students: Student[]; programs: Program[]; referenceDate: string }) {
   const student = students.find((item) => item.id === payment.studentId);
   const isOverdue = payment.status === 'overdue';
   const difference = Math.max(
     0,
-    Math.ceil((today.getTime() - new Date(`${payment.dueDate}T00:00:00`).getTime()) / 86_400_000),
+    Math.ceil((parseDateOnlyUtc(referenceDate) - parseDateOnlyUtc(payment.dueDate)) / 86_400_000),
   );
 
   return (
@@ -222,17 +217,22 @@ function PaymentReminder({ payment, students, programs }: { payment: Payment; st
 }
 
 export default function Dashboard({ onNavigate, students = STUDENTS, teachers = TEACHERS, payments = PAYMENTS, programs = PROGRAMS }: Props) {
+  const indonesiaNow = getIndonesiaDateParts();
+  const todayIso = indonesiaNow.isoDate;
+  const todayMonth = indonesiaNow.month;
+  const todayYear = indonesiaNow.year;
+  const previousMonthDate = new Date(Date.UTC(todayYear, todayMonth - 2, 1));
   const [chartRange, setChartRange] = useState<6 | 12>(6);
-  const [chartYear, setChartYear] = useState(todayYear);
+  const [chartYear, setChartYear] = useState(() => todayYear);
   const activeStudents = students.filter((student) => student.status === 'active');
   const activeTeachers = teachers.filter((teacher) => teacher.status === 'active');
   const thisMonthPayments = payments.filter((payment) => payment.month === todayMonth && payment.year === todayYear);
   const paidThisMonth = thisMonthPayments.filter((payment) => payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
   const overduePayments = payments.filter((payment) => payment.status === 'overdue');
-  const dueTodayPayments = payments.filter((payment) => payment.status !== 'paid' && payment.dueDate === TODAY);
+  const dueTodayPayments = payments.filter((payment) => payment.status !== 'paid' && payment.dueDate === todayIso);
   const totalWeeklySessions = activeStudents.reduce((sum, student) => sum + student.schedules.length, 0);
   const fridaySessions = activeStudents.reduce((sum, student) => sum + student.schedules.filter((schedule) => schedule.day === 'Jumat').length, 0);
-  const previousMonthPaid = payments.filter((payment) => payment.month === previousMonthDate.getMonth() + 1 && payment.year === previousMonthDate.getFullYear() && payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
+  const previousMonthPaid = payments.filter((payment) => payment.month === previousMonthDate.getUTCMonth() + 1 && payment.year === previousMonthDate.getUTCFullYear() && payment.status === 'paid').reduce((sum, payment) => sum + payment.total, 0);
   const incomeGrowth = previousMonthPaid > 0 ? Math.round(((paidThisMonth - previousMonthPaid) / previousMonthPaid) * 100) : 0;
   const collectionRate = thisMonthPayments.length ? Math.round((thisMonthPayments.filter((payment) => payment.status === 'paid').length / thisMonthPayments.length) * 100) : 0;
   const availableChartYears = Array.from(new Set([
@@ -241,14 +241,14 @@ export default function Dashboard({ onNavigate, students = STUDENTS, teachers = 
     todayYear - 2,
     ...payments.map((payment) => payment.year),
   ])).sort((a, b) => b - a);
-  const chartEndMonth = chartRange === 12 ? 11 : chartYear === todayYear ? todayMonth - 1 : 11;
+  const chartEndMonth = chartYear === todayYear ? todayMonth - 1 : 11;
   const chartMonths = Array.from({ length: chartRange }, (_, index) => {
-    const date = new Date(chartYear, chartEndMonth - (chartRange - 1 - index), 1);
-    const monthPayments = payments.filter((payment) => payment.month === date.getMonth() + 1 && payment.year === date.getFullYear());
+    const date = new Date(Date.UTC(chartYear, chartEndMonth - (chartRange - 1 - index), 1));
+    const monthPayments = payments.filter((payment) => payment.month === date.getUTCMonth() + 1 && payment.year === date.getUTCFullYear());
     const paidPayments = monthPayments.filter((payment) => payment.status === 'paid');
     return {
-      label: MONTH_NAMES[date.getMonth()].slice(0, 3),
-      fullLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`,
+      label: MONTH_NAMES[date.getUTCMonth()].slice(0, 3),
+      fullLabel: `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`,
       value: paidPayments.reduce((sum, payment) => sum + payment.total, 0),
       billed: monthPayments.reduce((sum, payment) => sum + payment.total, 0),
       paidCount: paidPayments.length,
@@ -260,9 +260,7 @@ export default function Dashboard({ onNavigate, students = STUDENTS, teachers = 
   const chartPaidCount = chartMonths.reduce((sum, month) => sum + month.paidCount, 0);
   const chartPaymentCount = chartMonths.reduce((sum, month) => sum + month.totalCount, 0);
   const chartCollectionRate = chartPaymentCount ? Math.round((chartPaidCount / chartPaymentCount) * 100) : 0;
-  const chartPeriodLabel = chartRange === 12
-    ? `Januari - Desember ${chartYear}`
-    : `${chartMonths[0].fullLabel} - ${chartMonths[chartMonths.length - 1].fullLabel}`;
+  const chartPeriodLabel = `${chartMonths[0].fullLabel} - ${chartMonths[chartMonths.length - 1].fullLabel}`;
   const bestChartMonth = chartMonths.reduce((best, month) => month.value > best.value ? month : best, chartMonths[0]);
   const chartOutstanding = Math.max(chartBilledTotal - chartPaidTotal, 0);
   const chartStartValue = chartMonths[0].value;
@@ -453,7 +451,7 @@ export default function Dashboard({ onNavigate, students = STUDENTS, teachers = 
           </div>
           <div className="reminder-list">
             {reminders.length > 0 ? (
-              reminders.map((payment) => <PaymentReminder key={payment.id} payment={payment} students={students} programs={programs} />)
+              reminders.map((payment) => <PaymentReminder key={payment.id} payment={payment} students={students} programs={programs} referenceDate={todayIso} />)
             ) : (
               <div className="dashboard-empty">
                 <DashboardIcon size={24}><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></DashboardIcon>

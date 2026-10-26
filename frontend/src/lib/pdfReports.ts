@@ -1,5 +1,6 @@
 import type { Payment, Program, Student, Teacher } from '../types';
 import { MONTH_NAMES, PROGRAMS, TEACHERS, formatCurrency, formatDate } from '../data/mockData';
+import { formatIndonesiaDate, getIndonesiaDateParts } from './indonesiaTime';
 
 export type PdfReportType = 'Data Murid' | 'Data Guru' | 'Keuangan Bulanan' | 'Keuangan Tahunan';
 
@@ -45,7 +46,8 @@ const paymentStatusClass = (status: Payment['status']) => status === 'paid' ? 's
 
 function reportNumber(prefix: string) {
   const now = new Date();
-  return `${prefix}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}/${String(now.getTime()).slice(-6)}`;
+  const indonesiaNow = getIndonesiaDateParts(now);
+  return `${prefix}/${String(indonesiaNow.month).padStart(2, '0')}/${indonesiaNow.year}/${String(now.getTime()).slice(-6)}`;
 }
 
 function reportTable(headers: string[], rows: string[][], alignRight: number[] = []) {
@@ -71,7 +73,7 @@ function openPrintWindow(options: ReportOptions) {
   const tableCellPadding = settings.density === 'compact' ? '5px 5px' : '7px 6px';
   const approvalMargin = settings.density === 'compact' ? '12px' : '18px';
   const signatureHeight = settings.density === 'compact' ? '36px' : '48px';
-  const generatedAt = new Intl.DateTimeFormat('id-ID', { dateStyle: 'full', timeStyle: 'short' }).format(new Date());
+  const generatedAt = formatIndonesiaDate(new Date(), { dateStyle: 'full', timeStyle: 'short' });
   const logoUrl = `${window.location.origin}/edglo-logo.png`;
   printWindow.document.open();
   printWindow.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(options.title)} - EdGLO</title><style>

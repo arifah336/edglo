@@ -5,6 +5,7 @@ import ProgramSummaryTable from '../components/reports/ProgramSummaryTable';
 import { useToast } from '../components/ui/ToastProvider';
 import DataPagination from '../components/ui/DataPagination';
 import { DEFAULT_PDF_SETTINGS, printPdfReport, type PdfPrintSettings, type PdfReportType } from '../lib/pdfReports';
+import { formatIndonesiaDate, getIndonesiaDateParts } from '../lib/indonesiaTime';
 
 type ReportLog = { id: number; type: PdfReportType; period: string; createdAt: string; status: 'Siap'; month?: number; year?: number };
 type PrintRequest = { type: PdfReportType; month: number; year: number; archive: boolean };
@@ -19,8 +20,9 @@ const REPORTS: Array<{ type: PdfReportType; description: string; tone: string; i
 
 export default function Reports({ students = STUDENTS, teachers = TEACHERS, programs = PROGRAMS, payments = PAYMENTS }: Props) {
   const { notify } = useToast();
-  const [month, setMonth] = useState(7);
-  const [year, setYear] = useState(2026);
+  const indonesiaNow = getIndonesiaDateParts();
+  const [month, setMonth] = useState(() => indonesiaNow.month);
+  const [year, setYear] = useState(() => indonesiaNow.year);
   const [logs, setLogs] = useState<ReportLog[]>([
     { id: 1, type: 'Keuangan Bulanan', period: 'Juni 2026', createdAt: '30 Jul 2026, 16.10', status: 'Siap', month: 6, year: 2026 },
     { id: 2, type: 'Data Murid', period: 'Semua data', createdAt: '28 Jul 2026, 09.45', status: 'Siap' },
@@ -50,7 +52,7 @@ export default function Reports({ students = STUDENTS, teachers = TEACHERS, prog
   const generateReport = (type: PdfReportType, reportMonth = month, reportYear = year) => {
     const period = type === 'Keuangan Bulanan' ? `${MONTH_NAMES[reportMonth - 1]} ${reportYear}` : type === 'Keuangan Tahunan' ? String(reportYear) : 'Semua data aktif';
     if (!openReport(type, reportMonth, reportYear)) return false;
-    const createdAt = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
+    const createdAt = formatIndonesiaDate(new Date(), { dateStyle: 'medium', timeStyle: 'short' });
     setLogs((current) => [{ id: Math.max(0, ...current.map((item) => item.id)) + 1, type, period, createdAt, status: 'Siap', month: type === 'Keuangan Bulanan' ? reportMonth : undefined, year: type.includes('Keuangan') ? reportYear : undefined }, ...current]);
     return true;
   };
@@ -77,7 +79,7 @@ export default function Reports({ students = STUDENTS, teachers = TEACHERS, prog
 
   return (
     <div className="reports-page">
-      <div className="module-heading"><div><span className="eyebrow">PUSAT LAPORAN</span><h2>Buat dan arsipkan laporan</h2><p>Pilih jenis laporan, tentukan periode, lalu cetak atau simpan sebagai PDF.</p></div><div className="report-period"><select className="input-field" value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTH_NAMES.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select><select className="input-field" value={year} onChange={(event) => setYear(Number(event.target.value))}>{[2024, 2025, 2026, 2027].map((item) => <option value={item} key={item}>{item}</option>)}</select></div></div>
+      <div className="module-heading"><div><span className="eyebrow">PUSAT LAPORAN</span><h2>Buat dan arsipkan laporan</h2><p>Pilih jenis laporan, tentukan periode, lalu cetak atau simpan sebagai PDF.</p></div><div className="report-period"><select className="input-field" value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTH_NAMES.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select><select className="input-field" value={year} onChange={(event) => setYear(Number(event.target.value))}>{[indonesiaNow.year - 2, indonesiaNow.year - 1, indonesiaNow.year, indonesiaNow.year + 1].map((item) => <option value={item} key={item}>{item}</option>)}</select></div></div>
 
       <div className="report-summary-grid">
         <div><span>Murid Aktif</span><strong>{activeStudents.length}</strong><small>{students.length} total terdaftar</small></div>

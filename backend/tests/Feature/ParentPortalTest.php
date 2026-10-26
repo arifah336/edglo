@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ClassSession;
 use App\Models\Student;
 use App\Models\Program;
 use App\Models\User;
@@ -13,6 +14,24 @@ use Tests\TestCase;
 class ParentPortalTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_public_schedule_slots_follow_active_classes_created_by_admin(): void
+    {
+        $this->seed(EdgloSeeder::class);
+        $session = ClassSession::query()->firstOrFail();
+        $session->update(['day' => 'Selasa', 'time' => '17:45', 'is_active' => true]);
+
+        $response = $this->getJson('/api/v1/public/schedule-slots')->assertOk();
+        $tuesday = collect($response->json('data'))->firstWhere('day', 'Selasa');
+
+        $this->assertNotNull($tuesday);
+        $this->assertContains('17:45', $tuesday['times']);
+
+        $session->update(['is_active' => false]);
+        $latest = $this->getJson('/api/v1/public/schedule-slots')->assertOk();
+        $latestTuesday = collect($latest->json('data'))->firstWhere('day', 'Selasa');
+        $this->assertNotContains('17:45', $latestTuesday['times'] ?? []);
+    }
 
     public function test_public_registration_enters_admin_queue_without_creating_parent_account(): void
     {

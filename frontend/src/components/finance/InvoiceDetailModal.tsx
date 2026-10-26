@@ -1,6 +1,7 @@
 import type { Payment, Program, Student } from '../../types';
-import { MONTH_NAMES, TODAY, formatCurrency, formatDate } from '../../data/mockData';
+import { MONTH_NAMES, formatCurrency, formatDate } from '../../data/mockData';
 import { getPaymentDueState } from '../../lib/paymentDue';
+import { getIndonesiaToday } from '../../lib/indonesiaTime';
 import { invoiceNumber } from './PaymentTable';
 
 type Props = { payment: Payment; students: Student[]; programs: Program[]; onClose: () => void; onPrint: () => void; onMarkPaid: () => void; canManage?: boolean };
@@ -8,7 +9,7 @@ type Props = { payment: Payment; students: Student[]; programs: Program[]; onClo
 export default function InvoiceDetailModal({ payment, students, programs, onClose, onPrint, onMarkPaid, canManage = true }: Props) {
   const student = students.find((item) => item.id === payment.studentId);
   const program = student ? programs.find((item) => item.id === student.programId) : undefined;
-  const dueState = getPaymentDueState(payment, TODAY);
+  const dueState = getPaymentDueState(payment, getIndonesiaToday());
 
   return (
     <div className="modal-overlay">

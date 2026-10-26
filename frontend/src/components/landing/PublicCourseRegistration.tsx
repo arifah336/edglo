@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, Clock3, LoaderCircle, PackageCheck, X } from 'lucide-react';
-import { api } from '../../lib/api';
-import { getTimesForDay } from '../../data/mockData';
+import { api, type PublicScheduleSlot } from '../../lib/api';
+import { formatTimeLabel } from '../../lib/timeFormat';
 
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -45,6 +45,9 @@ export default function PublicCourseRegistration({ open, programs, initialProgra
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [scheduleSlots, setScheduleSlots] = useState<PublicScheduleSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState('');
   const [form, setForm] = useState({
     parentName: '', email: '', phone: '', childName: '', age: '', address: '',
     programSelections: (initialProgram ? [{
@@ -54,7 +57,36 @@ export default function PublicCourseRegistration({ open, programs, initialProgra
     preferredSchedules: [] as Array<{ day: string; time: string }>, notes: '',
   });
 
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setSlotsLoading(true);
+        setSlotsError('');
+      }
+    });
+    void api.publicScheduleSlots()
+      .then((slots) => {
+        if (!cancelled) setScheduleSlots(slots);
+      })
+      .catch((slotError) => {
+        if (!cancelled) {
+          setScheduleSlots([]);
+          setSlotsError(slotError instanceof Error ? slotError.message : 'Slot jadwal belum dapat dimuat.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSlotsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   if (!open) return null;
+
+  const timesForDay = (day: string) => scheduleSlots.find((slot) => slot.day === day)?.times ?? [];
 
   const selectedPrograms = form.programSelections.map((choice) => ({
     ...choice,
@@ -206,10 +238,12 @@ export default function PublicCourseRegistration({ open, programs, initialProgra
             </fieldset>
 
             <fieldset className="grid gap-3 sm:col-span-2"><div><legend className="text-sm font-bold text-slate-800">Ketersediaan hari dan jam</legend><p className="mt-1 text-xs leading-5 text-slate-500">Cukup isi hari yang memungkinkan. Ini belum menjadi jadwal final; Admin akan mencocokkannya dengan program dan guru.</p></div>
-              <div className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-600"><Clock3 size={17} className="mt-0.5 shrink-0 text-[#087f9b]" /><span>Senin-Jumat: 11.00, 12.00, 13.30, 15.00, 16.30. Sabtu: 09.00, 10.30, 12.00, 13.30.</span></div>
+              <div className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-600"><Clock3 size={17} className="mt-0.5 shrink-0 text-[#087f9b]" /><span>{slotsLoading ? 'Memuat slot kelas terbaru...' : slotsError ? slotsError : scheduleSlots.length ? 'Pilihan jam mengikuti kelas aktif yang dibuat Admin. AM adalah 00.00-11.59, sedangkan PM adalah 12.00-23.59. 12.00 AM berarti tengah malam dan 12.00 PM berarti tengah hari.' : 'Belum ada slot kelas aktif. Silakan hubungi Admin EdGLO.'}</span></div>
               <div className="grid gap-2 sm:grid-cols-2">{DAYS.map((day) => {
                 const schedule = form.preferredSchedules.find((item) => item.day === day);
-                return <div key={day} className={`grid grid-cols-[1fr_120px] items-center gap-3 rounded-md border p-3 ${schedule ? 'border-cyan-300 bg-cyan-50/70' : 'border-slate-200 bg-slate-50'}`}><label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" checked={Boolean(schedule)} onChange={() => toggleDay(day)} className="h-4 w-4 accent-[#087f9b]" />{day}</label><select aria-label={`Jam pilihan ${day}`} required={Boolean(schedule)} disabled={!schedule} value={schedule?.time ?? ''} onChange={(event) => setPreferredTime(day, event.target.value)} className="h-9 min-w-0 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-950 disabled:bg-slate-100"><option value="">Pilih jam</option>{getTimesForDay(day).map((time) => <option key={time} value={time.replace('.', ':')}>{time} WIB</option>)}</select></div>;
+                const availableTimes = timesForDay(day);
+                const dayUnavailable = slotsLoading || availableTimes.length === 0;
+                return <div key={day} className={`grid grid-cols-[1fr_minmax(190px,240px)] items-center gap-3 rounded-md border p-3 ${schedule ? 'border-cyan-300 bg-cyan-50/70' : 'border-slate-200 bg-slate-50'} ${dayUnavailable ? 'opacity-60' : ''}`}><label className={`flex items-center gap-2 text-sm font-bold text-slate-700 ${dayUnavailable ? 'cursor-not-allowed' : 'cursor-pointer'}`}><input type="checkbox" checked={Boolean(schedule)} disabled={dayUnavailable} onChange={() => toggleDay(day)} className="h-4 w-4 accent-[#087f9b]" />{day}</label><select aria-label={`Jam pilihan ${day}`} required={Boolean(schedule)} disabled={!schedule || dayUnavailable} value={schedule?.time ?? ''} onChange={(event) => setPreferredTime(day, event.target.value)} className="h-9 min-w-0 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-950 disabled:bg-slate-100"><option value="">{dayUnavailable && !slotsLoading ? 'Belum tersedia' : 'Pilih jam'}</option>{availableTimes.map((time) => <option key={time} value={time}>{formatTimeLabel(time)}</option>)}</select></div>;
               })}</div>
             </fieldset>
             <label className="grid gap-2 text-sm font-bold text-slate-700 sm:col-span-2">Catatan kebutuhan<textarea rows={3} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="rounded-md border border-slate-300 bg-white px-3 py-3 font-normal text-slate-950" placeholder="Kebutuhan belajar, waktu alternatif, atau informasi penting lainnya." /></label>

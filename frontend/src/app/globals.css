@@ -4174,8 +4174,13 @@ textarea:focus-visible {
 .schedule-table-empty { height: 130px !important; color: #7C8F98 !important; text-align: center; }
 .schedule-time-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 7px; }
 .schedule-time-presets > span { margin-right: 2px; color: #84949B; font-size: 8px; }
+.schedule-time-presets > small { color: #84949B; font-size: 8px; font-weight: 700; }
 .schedule-time-presets button { min-height: 24px; padding: 3px 7px; border: 1px solid #D8E5E9; border-radius: 5px; background: #F7FAFB; color: #5C737E; font-size: 8px; font-weight: 800; cursor: pointer; }
 .schedule-time-presets button:hover, .schedule-time-presets button.active { border-color: #9DCDD6; background: #E8F6F8; color: #087E9E; }
+.schedule-time-preview { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; padding: 7px 9px; border: 1px solid #DCE8EB; border-radius: 5px; background: #F4F9FA; }
+.schedule-time-preview strong { color: #17343E; font-size: 10px; }
+.schedule-time-preview span { color: #6F858E; font-size: 8px; font-weight: 700; }
+.schedule-slot-hint { display: block; margin-top: 7px; color: #58717B; font-size: 9px; line-height: 1.45; }
 
 @media (max-width: 1000px) {
   .schedule-toolbar { flex-wrap: wrap; }
@@ -4377,6 +4382,11 @@ html[data-theme='dark'] .schedule-view-switch button.active { background: #26323
 html[data-theme='dark'] .schedule-time-presets button { border-color: #344148; background: #1A2429; color: #A5B5BC; }
 html[data-theme='dark'] .schedule-time-presets button:hover,
 html[data-theme='dark'] .schedule-time-presets button.active { border-color: #397F8F; background: #1C3037; color: #6CC8DA; }
+html[data-theme='dark'] .schedule-time-preview { border-color: #344148; background: #182329; }
+html[data-theme='dark'] .schedule-time-preview strong { color: #E5F0F3; }
+html[data-theme='dark'] .schedule-time-preview span { color: #9AAEB6; }
+html[data-theme='dark'] .schedule-time-presets > small,
+html[data-theme='dark'] .schedule-slot-hint { color: #94A8B0; }
 
 html[data-theme='dark'] .modal-overlay { background: rgba(0, 0, 0, .72); backdrop-filter: blur(3px); }
 html[data-theme='dark'] .modal-box { box-shadow: 0 26px 70px rgba(0, 0, 0, .5); }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CourseRegistrationResource;
+use App\Models\ClassSession;
 use App\Models\CourseRegistration;
 use App\Models\Program;
 use App\Services\IdGenerator;
@@ -39,6 +40,21 @@ class PublicRegistrationController extends Controller
         $programs = Program::query()->whereIn('id', $programIds)->where('is_active', true)->get()->keyBy('id');
         if ($programs->count() !== $programIds->count()) {
             throw ValidationException::withMessages(['programSelections' => ['Salah satu program yang dipilih sudah tidak tersedia.']]);
+        }
+
+        $availableSlots = ClassSession::query()
+            ->where('is_active', true)
+            ->get(['day', 'time'])
+            ->mapWithKeys(fn (ClassSession $session) => [
+                $session->day.'|'.substr(str_replace('.', ':', $session->time), 0, 5) => true,
+            ]);
+        $invalidSchedule = collect($data['preferredSchedules'])->first(
+            fn (array $schedule) => ! $availableSlots->has($schedule['day'].'|'.$schedule['time'])
+        );
+        if ($invalidSchedule) {
+            throw ValidationException::withMessages([
+                'preferredSchedules' => ["Slot {$invalidSchedule['day']} pukul {$invalidSchedule['time']} sudah tidak tersedia. Pilih jadwal terbaru."],
+            ]);
         }
 
         $selections = collect($data['programSelections'])->map(function (array $selection) use ($programs) {
