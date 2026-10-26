@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 type Props = {
   onSubmit: (email: string, password: string) => Promise<void>;
@@ -15,6 +16,7 @@ function errorMessage(error: unknown) {
 export default function LoginForm({ onSubmit, emailPlaceholder = 'nama@email.com', submitLabel = 'Masuk' }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +42,19 @@ export default function LoginForm({ onSubmit, emailPlaceholder = 'nama@email.com
       </div>
       <div>
         <label className="input-label" htmlFor="login-password">Password</label>
-        <input id="login-password" suppressHydrationWarning className="input-field" type="password" name="password" autoCapitalize="none" autoCorrect="off" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Masukkan password" required />
+        <div className="login-password-field">
+          <input id="login-password" suppressHydrationWarning className="input-field" type={showPassword ? 'text' : 'password'} name="password" autoCapitalize="none" autoCorrect="off" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Masukkan password" required />
+          <button
+            type="button"
+            className="login-password-toggle"
+            onClick={() => setShowPassword((visible) => !visible)}
+            aria-label={showPassword ? 'Sembunyikan sandi' : 'Tampilkan sandi'}
+            aria-pressed={showPassword}
+            title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+          >
+            {showPassword ? <EyeOff aria-hidden="true" size={18} /> : <Eye aria-hidden="true" size={18} />}
+          </button>
+        </div>
       </div>
       {error && <div className="login-error" role="alert">{error}</div>}
       <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px 0', fontSize: 15, marginTop: 4 }}>

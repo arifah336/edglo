@@ -15,11 +15,14 @@ use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\TeacherAttendanceController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\TeacherPayrollController;
+use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/admin/login', [AuthController::class, 'adminLogin'])->middleware('throttle:5,1');
+    Route::post('auth/teacher/login', [AuthController::class, 'teacherLogin'])->middleware('throttle:5,1');
+    Route::get('public/programs', [ProgramController::class, 'publicIndex']);
     Route::post('registrations', PublicRegistrationController::class)->middleware('throttle:5,1');
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -28,11 +31,20 @@ Route::prefix('v1')->group(function () {
         Route::put('auth/password', [AuthController::class, 'updatePassword']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
 
+        Route::middleware('role:teacher')->prefix('teacher')->group(function () {
+            Route::get('overview', [TeacherPortalController::class, 'overview']);
+            Route::post('progress', [TeacherPortalController::class, 'storeProgress']);
+            Route::delete('progress/{progressLog}', [TeacherPortalController::class, 'destroyProgress']);
+        });
+
         Route::middleware('role:super_admin,admin')->group(function () {
             Route::get('workspace', WorkspaceController::class);
             Route::get('dashboard', DashboardController::class);
             Route::get('programs', [ProgramController::class, 'index']);
             Route::get('programs/{program}', [ProgramController::class, 'show']);
+            Route::post('programs', [ProgramController::class, 'store']);
+            Route::match(['put', 'patch'], 'programs/{program}', [ProgramController::class, 'update']);
+            Route::delete('programs/{program}', [ProgramController::class, 'destroy']);
             Route::get('students', [StudentController::class, 'index']);
             Route::get('students/{student}', [StudentController::class, 'show']);
             Route::get('teachers', [TeacherController::class, 'index']);
@@ -70,8 +82,6 @@ Route::prefix('v1')->group(function () {
                 Route::match(['put', 'patch'], 'payments/{payment}', [PaymentController::class, 'update']);
                 Route::delete('payments/{payment}', [PaymentController::class, 'destroy']);
 
-                Route::post('teacher-attendances', [TeacherAttendanceController::class, 'store']);
-                Route::delete('teacher-attendances/{teacherAttendance}', [TeacherAttendanceController::class, 'destroy']);
                 Route::post('student-absences', [StudentAbsenceController::class, 'store']);
                 Route::delete('student-absences/{studentAbsence}', [StudentAbsenceController::class, 'destroy']);
                 Route::post('make-up-schedules', [MakeUpScheduleController::class, 'store']);
@@ -80,14 +90,13 @@ Route::prefix('v1')->group(function () {
             });
 
             Route::middleware('role:super_admin')->group(function () {
-                Route::post('programs', [ProgramController::class, 'store']);
-                Route::match(['put', 'patch'], 'programs/{program}', [ProgramController::class, 'update']);
-                Route::delete('programs/{program}', [ProgramController::class, 'destroy']);
                 Route::post('teachers/{teacher}/deactivate', [TeacherController::class, 'deactivate']);
                 Route::post('teachers/{teacher}/activate', [TeacherController::class, 'activate']);
                 Route::post('teachers', [TeacherController::class, 'store']);
                 Route::match(['put', 'patch'], 'teachers/{teacher}', [TeacherController::class, 'update']);
                 Route::delete('teachers/{teacher}', [TeacherController::class, 'destroy']);
+                Route::post('teacher-attendances', [TeacherAttendanceController::class, 'store']);
+                Route::delete('teacher-attendances/{teacherAttendance}', [TeacherAttendanceController::class, 'destroy']);
                 Route::get('teacher-payrolls', [TeacherPayrollController::class, 'index']);
                 Route::post('teacher-payrolls', [TeacherPayrollController::class, 'store']);
                 Route::delete('teacher-payrolls/{teacherPayroll}', [TeacherPayrollController::class, 'destroy']);

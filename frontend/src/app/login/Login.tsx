@@ -1,6 +1,8 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import SessionLoading from '../../components/auth/SessionLoading';
@@ -13,7 +15,9 @@ export default function Login() {
   const authSnapshot = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getServerAuthSnapshot);
   const authSession = authSnapshot === null ? null : parseAuthSession(authSnapshot);
   useEffect(() => {
-    if (authSnapshot !== null && authSession && authSession.user.role !== 'parent') router.replace('/dashboard');
+    if (authSnapshot === null || !authSession) return;
+    if (authSession.user.role === 'teacher') router.replace('/teacher');
+    else if (['super_admin', 'admin'].includes(authSession.user.role)) router.replace('/dashboard');
   }, [authSnapshot, authSession, router]);
 
   const handleLogin = async (email: string, password: string) => {
@@ -32,12 +36,16 @@ export default function Login() {
     localStorage.setItem('edglo-theme', nextTheme);
   };
 
-  if (authSnapshot === null || (authSession && authSession.user.role !== 'parent')) {
+  if (authSnapshot === null || (authSession && ['super_admin', 'admin', 'teacher'].includes(authSession.user.role))) {
     return <SessionLoading message={authSession ? 'Membuka dashboard...' : 'Memulihkan sesi...'} />;
   }
 
   return (
     <div className="login-page" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #EEF7F8 0%, #E0EFFF 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <Link href="/" className="login-exit-link" aria-label="Kembali ke beranda">
+        <ArrowLeft aria-hidden="true" size={18} />
+        <span>Kembali ke beranda</span>
+      </Link>
       <button type="button" className="login-theme-toggle" onClick={toggleTheme} aria-label="Ganti tema putih atau hitam" title="Ganti tema">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" /></svg>
       </button>
@@ -50,6 +58,7 @@ export default function Login() {
           <h1 style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 20, fontWeight: 700, color: '#1F2933', margin: '0 0 4px' }}>Masuk ke Dashboard</h1>
           <div style={{ fontSize: 13, color: '#6B7C8D', marginBottom: 24 }}>Gunakan akun admin yang terdaftar di backend EdGLO</div>
           <LoginForm onSubmit={handleLogin} emailPlaceholder="admin@edglo.id" />
+          <Link href="/teacher/login" className="login-role-switch">Masuk sebagai Guru</Link>
         </div>
       </div>
     </div>

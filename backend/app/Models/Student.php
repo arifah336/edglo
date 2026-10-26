@@ -16,6 +16,7 @@ class Student extends Model
     protected $fillable = [
         'id', 'parent_user_id', 'full_name', 'birth_place', 'birth_date', 'parent_name', 'address', 'phone',
         'photo', 'program_id', 'current_level', 'level_started_at', 'level_duration_months', 'sessions_per_week',
+        'billing_amount', 'billing_cycle_months', 'billing_started_at',
         'package_started_at', 'package_ends_at', 'package_selections',
         'registration_fee', 'book_fee', 'other_fee', 'discount', 'fee_notes', 'join_date', 'leave_date',
         'teacher_id', 'notes', 'status',
@@ -26,7 +27,9 @@ class Student extends Model
         return [
             'sessions_per_week' => 'integer', 'birth_date' => 'date', 'level_started_at' => 'date',
             'level_duration_months' => 'integer', 'registration_fee' => 'integer', 'book_fee' => 'integer',
-            'other_fee' => 'integer', 'discount' => 'integer', 'join_date' => 'date', 'leave_date' => 'date',
+            'other_fee' => 'integer', 'discount' => 'integer', 'billing_amount' => 'integer',
+            'billing_cycle_months' => 'integer',
+            'billing_started_at' => 'date', 'join_date' => 'date', 'leave_date' => 'date',
             'package_started_at' => 'date', 'package_ends_at' => 'date', 'package_selections' => 'array',
         ];
     }
@@ -53,7 +56,12 @@ class Student extends Model
 
     public function statusHistories(): HasMany
     {
-        return $this->hasMany(StudentStatusHistory::class)->orderBy('date');
+        return $this->hasMany(StudentStatusHistory::class)->orderBy('date')->orderBy('id');
+    }
+
+    public function progressLogs(): HasMany
+    {
+        return $this->hasMany(StudentProgressLog::class)->latest('activity_date')->latest('id');
     }
 
     public function payments(): HasMany

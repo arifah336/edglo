@@ -75,6 +75,11 @@ const NAV_SECTIONS: NavSection[] = [
         icon: <Svg><path d="M9 5h6M9 9h6M9 13h3" /><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="m15 16 2 2 4-4" /></Svg>,
       },
       {
+        page: 'programs',
+        label: 'Kelola Program',
+        icon: <Svg><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /><path d="M8 7h8M8 11h6" /></Svg>,
+      },
+      {
         page: 'students',
         label: 'Data Murid',
         icon: <Svg><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /></Svg>,
@@ -101,7 +106,14 @@ const NAV_SECTIONS: NavSection[] = [
       },
       {
         page: 'attendance',
-        label: 'Absensi & Pengganti',
+        label: 'Absensi Guru',
+        superAdminOnly: true,
+        icon: <Svg><path d="M9 11l2 2 4-4" /><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 9h18" /></Svg>,
+      },
+      {
+        page: 'attendance',
+        label: 'Absensi Murid & Pengganti',
+        adminOnly: true,
         icon: <Svg><path d="M9 11l2 2 4-4" /><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 9h18" /></Svg>,
       },
     ],
@@ -153,6 +165,7 @@ const NAV_SECTIONS: NavSection[] = [
 const PAGE_META: Record<Page, { title: string; description: string }> = {
   dashboard: { title: 'Dashboard', description: 'Ringkasan operasional EdGLO hari ini' },
   registrations: { title: 'Pendaftaran Baru', description: 'Verifikasi formulir calon murid dari landing page' },
+  programs: { title: 'Kelola Program', description: 'Atur paket belajar, biaya, level, dan promo pendaftaran' },
   students: { title: 'Data Murid', description: 'Kelola data dan informasi murid' },
   'student-form': { title: 'Form Murid', description: 'Lengkapi informasi murid' },
   'student-detail': { title: 'Detail Murid', description: 'Informasi lengkap murid' },

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Student;
+use App\Models\Program;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Database\Seeders\EdgloSeeder;
@@ -17,6 +18,12 @@ class ParentPortalTest extends TestCase
     {
         $this->seed(EdgloSeeder::class);
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00:00'));
+        Program::query()->whereKey('calistung-regular')->update([
+            'discount_percent' => 10,
+            'discount_min_months' => 2,
+            'registration_fee' => 50000,
+            'book_fee' => 25000,
+        ]);
 
         $response = $this->postJson('/api/v1/registrations', [
             'parentName' => 'Rani Pratama',
@@ -38,6 +45,8 @@ class ParentPortalTest extends TestCase
             ->assertJsonPath('registration.status', 'pending')
             ->assertJsonPath('registration.parent.name', 'Rani Pratama')
             ->assertJsonPath('registration.programSelections.0.months', 2)
+            ->assertJsonPath('registration.programSelections.0.packageTotal', 1080000)
+            ->assertJsonPath('registration.programSelections.0.discountPercent', 10)
             ->assertJsonPath('registration.programSelections.1.programName', 'English Regular')
             ->assertJsonMissingPath('token')
             ->assertJsonMissingPath('user');
@@ -70,6 +79,9 @@ class ParentPortalTest extends TestCase
         $approvedStudent = Student::query()->findOrFail($approval->json('data.studentId'));
         $this->assertSame('2026-10-01', $approvedStudent->package_started_at?->toDateString());
         $this->assertSame('2026-12-31', $approvedStudent->package_ends_at?->toDateString());
+        $this->assertSame(2580000, $approvedStudent->billing_amount);
+        $this->assertSame(50000, $approvedStudent->registration_fee);
+        $this->assertSame(125000, $approvedStudent->book_fee);
     }
 
     public function test_expired_package_is_automatically_deactivated_when_admin_loads_students(): void

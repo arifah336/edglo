@@ -17,6 +17,7 @@ import Registrations from './views/Registrations';
 import Attendance from './views/Attendance';
 import Payroll from './views/Payroll';
 import ScheduleRequests from './views/ScheduleRequests';
+import Programs from './views/Programs';
 import { ApiError, api } from './lib/api';
 import { useToast } from './components/ui/ToastProvider';
 import SessionLoading from './components/auth/SessionLoading';
@@ -105,11 +106,12 @@ export default function App() {
 
   useEffect(() => {
     if (authSnapshot !== null && !hasAuthSession) router.replace('/login');
-    else if (authSession?.user.role === 'parent') router.replace('/parent');
+    else if (authSession?.user.role === 'parent') router.replace('/');
+    else if (authSession?.user.role === 'teacher') router.replace('/teacher');
   }, [authSnapshot, authSession?.user.role, hasAuthSession, router]);
 
   useEffect(() => {
-    if (!authSession || authSession.user.role === 'parent') return;
+    if (!authSession || !['super_admin', 'admin'].includes(authSession.user.role)) return;
     const timer = window.setTimeout(() => void loadData(authSession), 0);
     return () => window.clearTimeout(timer);
     // Token adalah identitas stabil sesi; pembaruan profil tidak perlu memuat ulang semua data.
@@ -226,6 +228,34 @@ export default function App() {
     }
   };
 
+  const saveProgram = async (program: Program, originalId?: string) => {
+    if (!token) return;
+    try {
+      const saved = originalId
+        ? await api.updateProgram(token, originalId, program)
+        : await api.createProgram(token, program);
+      setPrograms((current) => originalId
+        ? replaceById(current, saved, originalId)
+        : [...current, saved].sort((a, b) => a.name.localeCompare(b.name, 'id')));
+      notify({ tone: 'success', title: originalId ? 'Program diperbarui' : 'Program ditambahkan', message: `${saved.name} sudah tersedia pada pengaturan program.` });
+    } catch (programError) {
+      notify({ tone: 'error', title: 'Program gagal disimpan', message: errorMessage(programError) });
+      throw programError;
+    }
+  };
+
+  const deleteProgram = async (id: string) => {
+    if (!token) return;
+    try {
+      await api.deleteProgram(token, id);
+      setPrograms((current) => current.filter((program) => program.id !== id));
+      notify({ tone: 'success', title: 'Program dihapus', message: 'Program yang belum digunakan berhasil dihapus.' });
+    } catch (programError) {
+      notify({ tone: 'error', title: 'Program tidak dapat dihapus', message: errorMessage(programError) });
+      throw programError;
+    }
+  };
+
   const handleNavigate = (page: Page, id?: string) => {
     setCurrentPage(page);
     setNavContext({ id });
@@ -334,6 +364,7 @@ export default function App() {
     switch (currentPage) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigate} students={students} teachers={teachers} payments={payments} programs={programs} />;
       case 'registrations': return user?.role === 'admin' ? <Registrations registrations={registrations} onApprove={handleApproveRegistration} onReject={handleRejectRegistration} onNavigate={handleNavigate} /> : <div className="access-denied">Akses operasional hanya untuk Admin.</div>;
+      case 'programs': return <Programs programs={programs} onSave={saveProgram} onDelete={deleteProgram} />;
       case 'students':
       case 'student-form':
       case 'student-detail': return <Students key={currentPage + ':' + (navContext.id ?? '')} canManage={user?.role === 'admin'} onNavigate={handleNavigate} students={students} teachers={teachers} programs={programs} registrations={registrations} onStudentsChange={handleStudentsChange} initialView={currentPage === 'student-form' ? 'form' : currentPage === 'student-detail' ? 'detail' : 'list'} viewStudentId={currentPage === 'student-detail' ? navContext.id : undefined} editStudentId={currentPage === 'student-form' ? navContext.id : undefined} />;
@@ -342,7 +373,7 @@ export default function App() {
       case 'teacher-form':
       case 'teacher-detail':
       case 'teacher-activation': return <Teachers key={currentPage + ':' + (navContext.id ?? '')} canManage={user?.role === 'super_admin'} onNavigate={handleNavigate} initialView={currentPage === 'teacher-form' ? 'form' : currentPage === 'teacher-detail' ? 'detail' : currentPage === 'teacher-activation' ? 'activation' : 'list'} initialTeacherId={navContext.id} students={students} sessions={classSessions} teachers={teachers} onTeachersChange={handleTeachersChange} />;
-      case 'schedule': return <Schedule canManage={user?.role === 'admin'} students={students} teachers={teachers} programs={programs} sessions={classSessions} onSessionsChange={handleSessionsChange} />;
+      case 'schedule': return <Schedule canManage={user?.role === 'admin'} students={students} teachers={teachers} programs={programs} sessions={classSessions} onSessionsChange={handleSessionsChange} onDownload={() => api.downloadSchedule(authSession.token)} />;
       case 'schedule-requests': return user?.role === 'admin' ? <ScheduleRequests requests={scheduleChangeRequests} onApprove={handleApproveScheduleRequest} onReject={handleRejectScheduleRequest} onNavigate={handleNavigate} /> : <div className="access-denied">Akses operasional hanya untuk Admin.</div>;
       case 'attendance': return <Attendance role={user?.role === 'super_admin' ? 'super_admin' : 'admin'} students={students} teachers={teachers} sessions={classSessions} teacherAttendances={teacherAttendances} studentAbsences={studentAbsences} makeUpSchedules={makeUpSchedules} onSaveTeacherAttendance={saveTeacherAttendance} onDeleteTeacherAttendance={deleteTeacherAttendance} onSaveStudentAbsence={saveStudentAbsence} onDeleteStudentAbsence={deleteStudentAbsence} onSaveMakeUpSchedule={saveMakeUpSchedule} onDeleteMakeUpSchedule={deleteMakeUpSchedule} />;
       case 'finance-monthly': return <Finance canManage={user?.role === 'admin'} mode="monthly" students={students} programs={programs} payments={payments} onPaymentsChange={handlePaymentsChange} />;

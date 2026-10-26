@@ -138,6 +138,56 @@ test('admin biasa tidak melihat menu Kelola Admin', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Kelola Admin', exact: true })).toHaveCount(0);
 });
 
+test('Admin dapat membuka pengaturan harga, paket, promo, dan level program', async ({ page }) => {
+  await login(page, 'admin@edglo.id');
+  await page.getByRole('button', { name: 'Kelola Program', exact: true }).click();
+
+  await expect(page.getByRole('heading', { name: 'Kelola Program', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Paket belajar EdGLO', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Tambah Program', exact: true }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Tambah program', exact: true })).toBeVisible();
+  await dialog.getByLabel('Nama program *').fill('English Conversation');
+  const priceInput = dialog.getByLabel('Harga per bulan *');
+  await expect(priceInput).toHaveValue('');
+  await priceInput.fill('01111111');
+  await expect(priceInput).toHaveValue('1.111.111');
+  await priceInput.fill('');
+  await expect(priceInput).toHaveValue('');
+  await priceInput.fill('750000');
+  await expect(priceInput).toHaveValue('750.000');
+  await priceInput.focus();
+  await page.mouse.wheel(0, -300);
+  await expect(priceInput).toHaveValue('750.000');
+  const bookFeeInput = dialog.getByLabel('Biaya buku');
+  await expect(bookFeeInput).toHaveValue('');
+  await bookFeeInput.fill('0100000');
+  await expect(bookFeeInput).toHaveValue('100.000');
+  await dialog.getByLabel('Durasi paket awal *').fill('3');
+  const discountInput = dialog.getByLabel('Diskon paket');
+  await discountInput.fill('010');
+  await expect(discountInput).toHaveValue('10');
+  await dialog.getByLabel('Pilihan level').fill('A, B, C');
+  await expect(dialog.getByText('Rp 750.000', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Rp 2.025.000', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Tampilkan di pendaftaran')).toBeChecked();
+
+  await dialog.getByRole('button', { name: 'Batal', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit Bimbel Everyday', exact: true }).click();
+  const editDialog = page.getByRole('dialog');
+  const registrationFeeInput = editDialog.getByLabel('Biaya pendaftaran');
+  await expect(registrationFeeInput).toHaveValue('0');
+  await registrationFeeInput.click();
+  await page.keyboard.type('125000');
+  await expect(registrationFeeInput).toHaveValue('125.000');
+  const existingDiscountInput = editDialog.getByLabel('Diskon paket');
+  await expect(existingDiscountInput).toHaveValue('0');
+  await existingDiscountInput.click();
+  await page.keyboard.type('10');
+  await expect(existingDiscountInput).toHaveValue('10');
+});
+
 test('Admin fokus pada pendaftaran baru tanpa kotak masuk portal orang tua', async ({ page }) => {
   await login(page, 'admin@edglo.id');
   await expect(page.getByRole('button', { name: 'Pendaftaran Baru', exact: true })).toBeVisible();
@@ -153,6 +203,9 @@ test('program dari backend dipakai oleh murid, jadwal, keuangan, laporan, dan PD
     body.data.programs = body.data.programs.map((program: { id: string }) => program.id === 'calistung-regular'
       ? { ...program, name: dynamicProgramName, price: 654321 }
       : program);
+    body.data.students = body.data.students.map((student: { programId: string }) => student.programId === 'calistung-regular'
+      ? { ...student, billingAmount: 1234567, billingCycleMonths: 2 }
+      : student);
     await route.fulfill({ response, json: body });
   });
   await login(page, 'admin@edglo.id');
@@ -168,7 +221,7 @@ test('program dari backend dipakai oleh murid, jadwal, keuangan, laporan, dan PD
   await expect(page.locator('.finance-table').getByText(dynamicProgramName, { exact: true }).first()).toBeVisible();
   await page.getByRole('button', { name: '+ Buat Tagihan', exact: true }).click();
   await expect(page.getByText(dynamicProgramName).last()).toBeVisible();
-  await expect(page.getByText('Rp 654.321 / bulan')).toBeVisible();
+  await expect(page.getByText('Rp 1.234.567 / 2 bulan')).toBeVisible();
   await page.getByRole('button', { name: 'Tutup', exact: true }).click();
 
   await page.getByRole('button', { name: 'Laporan PDF', exact: true }).click();
@@ -204,14 +257,16 @@ test('Admin memperoleh form murid lengkap dan modul operasional', async ({ page 
   await expect(page.getByLabel('Biaya buku', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Biaya lainnya', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Potongan promo', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Nominal paket *', { exact: true })).toBeVisible();
+  await expect(page.locator('label').filter({ hasText: 'Ditagih setiap' }).locator('select')).toHaveValue('2');
 
   await page.getByRole('button', { name: 'Data Guru', exact: true }).click();
   await expect(page.getByRole('button', { name: '+ Tambah Guru', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Lihat Status', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Absensi & Pengganti', exact: true }).click();
+  await page.getByRole('button', { name: 'Absensi Murid & Pengganti', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Absensi & Pengganti', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Absensi Guru', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Absensi Guru', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Murid Tidak Hadir', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Jadwal Pengganti', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Slip Gaji Guru', exact: true })).toHaveCount(0);
@@ -227,9 +282,57 @@ test('Super Admin mengelola guru dan slip gaji dalam mode baca untuk operasional
   await expect(page.getByRole('button', { name: 'Tambah Murid', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
 
+  await page.getByRole('button', { name: 'Absensi Guru', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Simpan', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Murid Tidak Hadir', exact: true })).toHaveCount(0);
+
   await page.getByRole('button', { name: 'Slip Gaji Guru', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Slip Gaji Guru', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Slip gaji berbasis kehadiran', exact: true })).toBeVisible();
+});
+
+test('Super Admin dapat menambah guru beserta akun portal meski urutan ID guru tidak rapat', async ({ page }) => {
+  let createRequests = 0;
+  await page.route('**/backend-api/v1/workspace', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data.teachers = body.data.teachers.slice(0, 2).map((teacher: { id: string }, index: number) => ({ ...teacher, id: index === 0 ? 'T001' : 'T003' }));
+    await route.fulfill({ response, json: body });
+  });
+  await page.route('**/backend-api/v1/teachers', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    createRequests += 1;
+    expect(route.request().postData()).toContain('portalPassword');
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: {
+        id: 'T004', fullName: 'Guru Portal Test', address: 'Batam Center', birthPlace: 'Batam', birthDate: '1997-05-10',
+        religion: 'Islam', email: 'guru.portal.test@edglo.id', phone: '081234567899', lastEducation: 'S1', joinDate: '2026-10-25',
+        employmentType: 'fulltime', status: 'active', activeStudents: 0, hasPortalAccount: true, portalActive: true,
+        statusHistory: [{ date: '2026-10-25', action: 'activated', by: 'Super Admin EdGLO' }],
+      } }),
+    });
+  });
+
+  await login(page);
+  await page.getByRole('button', { name: 'Data Guru', exact: true }).click();
+  await page.getByRole('button', { name: '+ Tambah Guru', exact: true }).click();
+  await page.getByLabel('Nama Lengkap *').fill('Guru Portal Test');
+  await page.getByLabel('Alamat *').fill('Batam Center');
+  await page.getByLabel('Tempat Lahir').fill('Batam');
+  await page.getByLabel('Tanggal Lahir').fill('1997-05-10');
+  await page.getByLabel('Email', { exact: true }).fill('guru.portal.test@edglo.id');
+  await page.getByLabel('No. Telepon *').fill('081234567899');
+  await page.getByLabel('Tanggal Masuk *').fill('2026-10-25');
+  const password = page.getByLabel('Password awal *');
+  await password.fill('guru12345');
+  await page.getByRole('button', { name: 'Tampilkan sandi guru' }).click();
+  await expect(password).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Simpan', exact: true }).click();
+
+  await expect(page.getByText('Guru Portal Test', { exact: true }).first()).toBeVisible();
+  expect(createRequests).toBe(1);
 });
 
 test.describe('mobile', () => {

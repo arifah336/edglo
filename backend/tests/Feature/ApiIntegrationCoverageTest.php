@@ -135,7 +135,7 @@ class ApiIntegrationCoverageTest extends TestCase
             'year' => 2026,
             'dueDate' => '2026-09-10',
         ])->assertCreated()
-            ->assertJsonPath('data.programFee', 600000)
+            ->assertJsonPath('data.programFee', 1200000)
             ->json('data.id');
 
         $this->postJson("/api/v1/payments/{$paymentId}/mark-paid", ['paid_date' => '2026-09-10'])

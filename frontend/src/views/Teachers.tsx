@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import type { ClassSession, EmploymentType, Page, Student, Teacher } from '../types';
 import { EDUCATION_LEVELS, RELIGIONS, TEACHERS as initialTeachers, formatDate } from '../data/mockData';
 import { useToast } from '../components/ui/ToastProvider';
@@ -117,14 +118,37 @@ function TeacherList({ teachers, students, sessions, onView, onEdit, onActivatio
 }
 
 function TeacherForm({ teacher, onSave, onCancel }: { teacher?: Teacher; onSave: (data: Partial<Teacher>) => void; onCancel: () => void }) {
-  const [form, setForm] = useState({ fullName: teacher?.fullName ?? '', address: teacher?.address ?? '', birthPlace: teacher?.birthPlace ?? '', birthDate: teacher?.birthDate ?? '', religion: teacher?.religion ?? 'Islam', email: teacher?.email ?? '', phone: teacher?.phone ?? '', emergencyContactName: teacher?.emergencyContactName ?? '', emergencyContactPhone: teacher?.emergencyContactPhone ?? '', lastEducation: teacher?.lastEducation ?? 'S1', joinDate: teacher?.joinDate ?? '', employmentType: teacher?.employmentType ?? ('fulltime' as EmploymentType), notes: teacher?.notes ?? '', photoFile: undefined as File | undefined });
-  const set = (key: keyof typeof form, value: string | File | undefined) => setForm((current) => ({ ...current, [key]: value } as typeof current));
+  const [form, setForm] = useState({ fullName: teacher?.fullName ?? '', address: teacher?.address ?? '', birthPlace: teacher?.birthPlace ?? '', birthDate: teacher?.birthDate ?? '', religion: teacher?.religion ?? 'Islam', email: teacher?.email ?? '', phone: teacher?.phone ?? '', emergencyContactName: teacher?.emergencyContactName ?? '', emergencyContactPhone: teacher?.emergencyContactPhone ?? '', lastEducation: teacher?.lastEducation ?? 'S1', joinDate: teacher?.joinDate ?? '', employmentType: teacher?.employmentType ?? ('fulltime' as EmploymentType), notes: teacher?.notes ?? '', portalEnabled: teacher?.portalActive ?? teacher?.hasPortalAccount ?? true, portalPassword: '', photoFile: undefined as File | undefined });
+  const [showPortalPassword, setShowPortalPassword] = useState(false);
+  const [formError, setFormError] = useState('');
+  const set = (key: keyof typeof form, value: string | boolean | File | undefined) => {
+    setFormError('');
+    setForm((current) => ({ ...current, [key]: value } as typeof current));
+  };
+  const submit = () => {
+    const requiredFields = [form.fullName, form.address, form.birthPlace, form.birthDate, form.email, form.phone, form.joinDate];
+    if (requiredFields.some((value) => !value.trim())) {
+      setFormError('Lengkapi nama, alamat, tempat dan tanggal lahir, email, telepon, serta tanggal masuk guru.');
+      return;
+    }
+    if (form.portalEnabled && !teacher?.hasPortalAccount && form.portalPassword.length < 8) {
+      setFormError('Password awal Portal Guru minimal 8 karakter.');
+      return;
+    }
+    if (form.portalPassword && form.portalPassword.length < 8) {
+      setFormError('Password Portal Guru minimal 8 karakter.');
+      return;
+    }
+    onSave(form);
+  };
   return (
     <div>
-      <div className="page-header"><button className="btn-secondary" onClick={onCancel}>Kembali</button><button className="btn-primary" onClick={() => onSave(form)}>Simpan</button></div>
+      <div className="page-header"><button className="btn-secondary" onClick={onCancel}>Kembali</button><button className="btn-primary" onClick={submit}>Simpan</button></div>
+      {formError && <div className="teacher-form-error" role="alert">{formError}</div>}
       <div className="entity-form-grid">
         <div className="card entity-form-card"><div className="section-title">Data Pribadi</div><div className="form-stack"><label className="photo-upload-field"><span className="photo-upload-preview">{teacher?.photo ? <span style={{ backgroundImage: `url(${teacher.photo})` }} /> : form.fullName.charAt(0) || 'G'}</span><span><strong>Foto guru</strong><small>{form.photoFile?.name ?? 'JPG atau PNG, maksimal 2 MB'}</small></span><input type="file" accept="image/png,image/jpeg" onChange={(event) => set('photoFile', event.target.files?.[0])} /></label><label>Nama Lengkap *<input value={form.fullName} onChange={(e) => set('fullName', e.target.value)} /></label><label>Alamat *<textarea rows={3} value={form.address} onChange={(e) => set('address', e.target.value)} /></label><div className="form-two-columns"><label>Tempat Lahir<input value={form.birthPlace} onChange={(e) => set('birthPlace', e.target.value)} /></label><label>Tanggal Lahir<input type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} /></label></div><label>Agama<select value={form.religion} onChange={(e) => set('religion', e.target.value)}>{RELIGIONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></label></div></div>
         <div className="card entity-form-card"><div className="section-title">Kontak & Kepegawaian</div><div className="form-stack"><label>Email<input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} /></label><label>No. Telepon *<input value={form.phone} onChange={(e) => set('phone', e.target.value)} /></label><div className="form-two-columns"><label>Nama kontak darurat<input value={form.emergencyContactName} onChange={(e) => set('emergencyContactName', e.target.value)} /></label><label>Telepon darurat<input value={form.emergencyContactPhone} onChange={(e) => set('emergencyContactPhone', e.target.value)} /></label></div><label>Pendidikan Terakhir<select value={form.lastEducation} onChange={(e) => set('lastEducation', e.target.value)}>{EDUCATION_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}</select></label><label>Status Kerja<select value={form.employmentType} onChange={(e) => set('employmentType', e.target.value)}><option value="fulltime">Fulltime</option><option value="parttime">Part Time</option><option value="magang">Magang</option></select></label><label>Tanggal Masuk *<input type="date" value={form.joinDate} onChange={(e) => set('joinDate', e.target.value)} /></label><label>Keterangan<textarea rows={3} value={form.notes} onChange={(e) => set('notes', e.target.value)} /></label><div className="status-managed-note">Tanggal Off dikelola dari Status Guru agar riwayat tidak terputus.</div></div></div>
+        <div className="card entity-form-card teacher-portal-account-card"><div className="section-title">Akun Portal Guru</div><div className="form-stack"><label className="teacher-portal-toggle"><input type="checkbox" checked={form.portalEnabled} onChange={(event) => set('portalEnabled', event.target.checked)} /><span><strong>Aktifkan akses monitoring</strong><small>Guru hanya dapat melihat murid yang menjadi tanggungannya.</small></span></label>{form.portalEnabled && <label>{teacher?.hasPortalAccount ? 'Password baru (opsional)' : 'Password awal *'}<div className="teacher-password-field"><input type={showPortalPassword ? 'text' : 'password'} minLength={8} value={form.portalPassword} onChange={(event) => set('portalPassword', event.target.value)} placeholder={teacher?.hasPortalAccount ? 'Kosongkan jika tidak diubah' : 'Minimal 8 karakter'} /><button type="button" onClick={() => setShowPortalPassword((visible) => !visible)} aria-label={showPortalPassword ? 'Sembunyikan sandi guru' : 'Tampilkan sandi guru'} title={showPortalPassword ? 'Sembunyikan password' : 'Tampilkan password'}>{showPortalPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>}<div className="status-managed-note">Email login mengikuti email guru. Akses akan otomatis berhenti saat status guru dibuat Off.</div></div></div>
       </div>
     </div>
   );
@@ -141,6 +165,7 @@ function TeacherDetail({ teacher, onEdit, onBack, canManage }: { teacher: Teache
     ['Pendidikan Terakhir', teacher.lastEducation],
     ['Tanggal Masuk', formatDate(teacher.joinDate)],
     ['Tanggal Off', teacher.leaveDate ? formatDate(teacher.leaveDate) : '-'],
+    ['Portal Guru', teacher.hasPortalAccount ? (teacher.portalActive ? 'Aktif' : 'Nonaktif') : 'Belum dibuat'],
   ];
 
   return (
@@ -218,7 +243,7 @@ export default function Teachers({ initialView = 'list', initialTeacherId, stude
   const [subPage, setSubPage] = useState<TeacherView>(initialView);
   const [selectedId, setSelectedId] = useState<string | undefined>(initialTeacherId);
   const selectedTeacher = teachers.find((t) => t.id === selectedId);
-  const handleSave = (data: Partial<Teacher>) => { const isEditing = Boolean(selectedId); if (selectedId) setTeachers(teachers.map((t) => t.id === selectedId ? { ...t, ...data } : t)); else setTeachers([...teachers, { id: `T${String(teachers.length + 1).padStart(3, '0')}`, status: 'active', statusHistory: [{ date: '2026-07-31', action: 'activated', by: 'Admin' }], ...(data as Omit<Teacher, 'id' | 'status' | 'statusHistory'>) }]); notify({ tone: 'success', title: isEditing ? 'Data guru diperbarui' : 'Guru baru ditambahkan', message: `${data.fullName ?? 'Data guru'} berhasil disimpan.` }); setSubPage('list'); setSelectedId(undefined); };
+  const handleSave = (data: Partial<Teacher>) => { const isEditing = Boolean(selectedId); if (selectedId) setTeachers(teachers.map((t) => t.id === selectedId ? { ...t, ...data } : t)); else setTeachers([...teachers, { id: `temp-teacher-${Date.now()}-${Math.random().toString(36).slice(2)}`, status: 'active', statusHistory: [{ date: new Date().toISOString().slice(0, 10), action: 'activated', by: 'Super Admin (Owner)' }], ...(data as Omit<Teacher, 'id' | 'status' | 'statusHistory'>) }]); notify({ tone: 'success', title: isEditing ? 'Data guru diperbarui' : 'Guru baru ditambahkan', message: `${data.fullName ?? 'Data guru'} sedang disimpan ke backend.` }); setSubPage('list'); setSelectedId(undefined); };
   if (subPage === 'activation') return <div className="teacher-status-dashboard"><TeacherStatusOverview teachers={teachers} sessions={sessions} /><TeacherActivation teachers={teachers} setTeachers={setTeachers} canManage={canManage} /></div>;
   if (subPage === 'form' && canManage) return <TeacherForm teacher={selectedTeacher} onSave={handleSave} onCancel={() => { setSubPage('list'); setSelectedId(undefined); }} />;
   if (subPage === 'detail' && selectedTeacher) return <TeacherDetail teacher={selectedTeacher} canManage={canManage} onEdit={() => setSubPage('form')} onBack={() => { setSubPage('list'); setSelectedId(undefined); }} />;

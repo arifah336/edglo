@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useMemo, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import {
   ArrowRight,
   CalendarDays,
@@ -10,15 +10,19 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  GraduationCap,
   Menu,
   MessageCircleMore,
+  LoaderCircle,
+  RefreshCw,
   ShieldCheck,
   Star,
   Target,
   UserRoundCheck,
   X,
 } from 'lucide-react';
-import { PROGRAMS } from '../../data/mockData';
+import { api } from '../../lib/api';
+import type { Program } from '../../types';
 import CourseRegistration from './PublicCourseRegistration';
 import { CountUp, ScrollReveal } from './ReactBits';
 
@@ -77,22 +81,78 @@ export default function PremiumLandingPage() {
   const [selectedProgram, setSelectedProgram] = useState('');
   const [activeProgramIndex, setActiveProgramIndex] = useState(0);
   const [openFaq, setOpenFaq] = useState(0);
+  const [catalogPrograms, setCatalogPrograms] = useState<Program[]>([]);
+  const [programLoading, setProgramLoading] = useState(true);
+  const [programError, setProgramError] = useState('');
 
-  const programs = useMemo(() => PROGRAMS.map((program) => ({
+  const fetchPrograms = useCallback(async () => {
+    try {
+      const items = await api.publicPrograms();
+      setCatalogPrograms(items);
+      setActiveProgramIndex(0);
+      setProgramError('');
+    } catch (error) {
+      setCatalogPrograms([]);
+      setProgramError(error instanceof Error ? error.message : 'Program belum dapat dimuat.');
+    } finally {
+      setProgramLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void fetchPrograms(), 0);
+    const refreshOnFocus = () => void fetchPrograms();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void fetchPrograms();
+    };
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [fetchPrograms]);
+
+  const programs = useMemo(() => catalogPrograms.map((program, index) => ({
     id: program.id,
     name: program.name,
     price: program.price,
     sessions: program.sessionsPerWeek,
-    ...programDetails[program.id],
-  })), []);
+    description: program.description || programDetails[program.id]?.description || 'Program belajar terarah yang disesuaikan dengan kebutuhan dan perkembangan anak.',
+    group: programDetails[program.id]?.group || program.name.split(' ')[0],
+    ages: program.targetAge || programDetails[program.id]?.ages || 'Usia sesuai kebutuhan',
+    accent: programDetails[program.id]?.accent || ['#22b8d6', '#f7b51b', '#25bd88', '#5d96f5'][index % 4],
+    benefits: programDetails[program.id]?.benefits || [`${program.sessionsPerWeek} sesi per minggu`, `${program.defaultPackageMonths ?? 2} bulan paket awal`, 'Evaluasi perkembangan'],
+    defaultPackageMonths: program.defaultPackageMonths ?? 2,
+    billingCycleMonths: program.billingCycleMonths ?? 1,
+    registrationFee: program.registrationFee ?? 0,
+    bookFee: program.bookFee ?? 0,
+    discountPercent: program.discountPercent ?? 0,
+    discountMinMonths: program.discountMinMonths ?? 2,
+  })), [catalogPrograms]);
   const activeProgram = programs[activeProgramIndex];
+  const activePackageMonths = activeProgram?.defaultPackageMonths ?? 1;
+  const activePackageSubtotal = (activeProgram?.price ?? 0) * activePackageMonths;
+  const activeDiscountPercent = activePackageMonths >= (activeProgram?.discountMinMonths ?? 2)
+    ? activeProgram?.discountPercent ?? 0
+    : 0;
+  const activeDiscountAmount = Math.round(activePackageSubtotal * activeDiscountPercent / 100);
+  const activePackageTotal = activePackageSubtotal - activeDiscountAmount;
+  const activeMonthlyEquivalent = activePackageMonths > 0 ? Math.round(activePackageTotal / activePackageMonths) : 0;
+  const activeInitialFees = (activeProgram?.registrationFee ?? 0) + (activeProgram?.bookFee ?? 0);
 
   const openRegistration = (programId = '') => {
+    if (!programs.length && !programLoading) {
+      document.getElementById('program')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     setSelectedProgram(programId);
     setRegistrationOpen(true);
   };
 
   const moveProgram = (direction: number) => {
+    if (!programs.length) return;
     setActiveProgramIndex((current) => (current + direction + programs.length) % programs.length);
   };
 
@@ -114,7 +174,13 @@ export default function PremiumLandingPage() {
               <a href="#pendaftaran" className="transition hover:text-[#087f9b]">Pendaftaran</a>
             </nav>
             <div className="hidden items-center gap-2 lg:flex">
-              <Link href="/login" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 px-5 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:bg-slate-950 hover:text-white"><ShieldCheck size={16} />Masuk Admin</Link>
+              <details className="group relative">
+                <summary className="flex h-10 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-slate-300 px-5 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:bg-slate-950 hover:text-white"><ShieldCheck size={16} />Masuk<ChevronDown size={15} /></summary>
+                <div className="absolute right-0 top-12 grid w-48 overflow-hidden rounded-md border border-slate-200 bg-white p-1.5 text-sm font-bold text-slate-700 shadow-xl">
+                  <Link href="/login" className="rounded px-3 py-2.5 hover:bg-slate-100 hover:text-[#087f9b]">Portal Admin</Link>
+                  <Link href="/teacher/login" className="rounded px-3 py-2.5 hover:bg-slate-100 hover:text-[#087f9b]">Portal Guru</Link>
+                </div>
+              </details>
               <button type="button" onClick={() => openRegistration()} className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#2ab9df] px-5 text-sm font-extrabold text-[#041018] transition hover:bg-[#f7b51b]">Daftar Kelas <ArrowRight size={16} /></button>
             </div>
             <button type="button" onClick={() => setMobileOpen((current) => !current)} className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-slate-700 lg:hidden" aria-label="Buka menu" aria-expanded={mobileOpen}>{mobileOpen ? <X size={20} /> : <Menu size={20} />}</button>
@@ -123,7 +189,8 @@ export default function PremiumLandingPage() {
             <div className="mx-auto mt-2 max-w-[1160px] rounded-md border border-slate-200 bg-white p-3 text-slate-900 shadow-2xl lg:hidden">
               <nav className="grid gap-1 text-sm font-bold">
                 {[['program', 'Program'], ['pengalaman', 'Cara Belajar'], ['fasilitas', 'Suasana Kelas'], ['pendaftaran', 'Pendaftaran']].map(([id, label]) => <a key={id} href={`#${id}`} onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-3 text-slate-700 hover:bg-slate-100 hover:text-slate-950">{label}</a>)}
-                <Link href="/login" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-md border border-slate-300 px-3 py-3"><ShieldCheck size={18} className="text-[#087f9b]" />Masuk Admin</Link>
+                <Link href="/login" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-md border border-slate-300 px-3 py-3"><ShieldCheck size={18} className="text-[#087f9b]" />Portal Admin</Link>
+                <Link href="/teacher/login" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-md border border-slate-300 px-3 py-3"><ShieldCheck size={18} className="text-[#087f9b]" />Portal Guru</Link>
                 <button type="button" onClick={() => { setMobileOpen(false); openRegistration(); }} className="rounded-md bg-[#2ab9df] px-3 py-3 font-extrabold text-[#041018]">Daftar Kelas</button>
               </nav>
             </div>
@@ -150,7 +217,7 @@ export default function PremiumLandingPage() {
 
       <section className="bg-white">
         <div className="mx-auto grid max-w-[1160px] grid-cols-2 px-5 py-5 lg:grid-cols-4 lg:px-8">
-          {[[20, '+', 'Murid berkembang'], [7, '', 'Program pilihan'], [7, '', 'Guru aktif'], [65, '+', 'Sesi per minggu']].map(([value, suffix, label]) => <div key={String(label)} className="px-3 py-4 text-center"><div className="text-3xl font-black text-[#087f9b]"><CountUp value={Number(value)} suffix={String(suffix)} /></div><div className="mt-1 text-xs font-bold text-slate-500">{label}</div></div>)}
+          {[[20, '+', 'Murid berkembang'], [programs.length, '', 'Program pilihan'], [7, '', 'Guru aktif'], [65, '+', 'Sesi per minggu']].map(([value, suffix, label]) => <div key={String(label)} className="px-3 py-4 text-center"><div className="text-3xl font-black text-[#087f9b]"><CountUp value={Number(value)} suffix={String(suffix)} /></div><div className="mt-1 text-xs font-bold text-slate-500">{label}</div></div>)}
         </div>
       </section>
 
@@ -158,10 +225,10 @@ export default function PremiumLandingPage() {
         <div className="mx-auto max-w-[1160px] px-5 lg:px-8">
           <ScrollReveal className="flex flex-col justify-between gap-7 md:flex-row md:items-end">
             <div className="max-w-[720px]"><p className="text-xs font-extrabold uppercase text-[#087f9b]">Program belajar</p><h2 className="mt-3 text-4xl font-black leading-[1.05] text-slate-950 sm:text-5xl">Temukan ritme belajar yang paling pas.</h2></div>
-            <div className="flex items-center gap-2"><button type="button" onClick={() => moveProgram(-1)} className="grid h-11 w-11 place-items-center rounded-full border border-slate-300 text-slate-600 transition hover:border-slate-950 hover:text-slate-950" aria-label="Program sebelumnya"><ChevronLeft size={19} /></button><span className="min-w-14 text-center text-xs font-bold text-slate-500">{String(activeProgramIndex + 1).padStart(2, '0')} / {String(programs.length).padStart(2, '0')}</span><button type="button" onClick={() => moveProgram(1)} className="grid h-11 w-11 place-items-center rounded-full border border-slate-300 text-slate-600 transition hover:border-slate-950 hover:text-slate-950" aria-label="Program berikutnya"><ChevronRight size={19} /></button></div>
+            {programs.length > 0 && <div className="flex items-center gap-2"><button type="button" onClick={() => moveProgram(-1)} className="grid h-11 w-11 place-items-center rounded-full border border-slate-300 text-slate-600 transition hover:border-slate-950 hover:text-slate-950" aria-label="Program sebelumnya"><ChevronLeft size={19} /></button><span className="min-w-14 text-center text-xs font-bold text-slate-500">{String(activeProgramIndex + 1).padStart(2, '0')} / {String(programs.length).padStart(2, '0')}</span><button type="button" onClick={() => moveProgram(1)} className="grid h-11 w-11 place-items-center rounded-full border border-slate-300 text-slate-600 transition hover:border-slate-950 hover:text-slate-950" aria-label="Program berikutnya"><ChevronRight size={19} /></button></div>}
           </ScrollReveal>
 
-          <div className="mt-12 grid gap-5 lg:grid-cols-[0.72fr_1.28fr]">
+          {programLoading ? <div className="mt-12 flex min-h-72 items-center justify-center gap-3 rounded-md border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600" role="status"><LoaderCircle size={20} className="animate-spin text-[#087f9b]" />Memuat program belajar...</div> : programs.length === 0 ? <div className="mt-12 flex min-h-72 flex-col items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-6 text-center"><GraduationCap size={30} className="text-[#087f9b]" /><h3 className="mt-4 text-xl font-bold text-slate-950">Belum ada program aktif</h3><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">{programError || 'Program baru akan tampil di sini setelah diaktifkan oleh Admin.'}</p><button type="button" onClick={() => { setProgramLoading(true); void fetchPrograms(); }} className="mt-5 inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:border-[#087f9b] hover:text-[#087f9b]"><RefreshCw size={16} />Muat Ulang</button></div> : <div className="mt-12 grid gap-5 lg:grid-cols-[0.72fr_1.28fr]">
             <ScrollReveal className="grid content-start gap-2">
               {programs.map((program, index) => (
                 <button key={program.id} type="button" onClick={() => setActiveProgramIndex(index)} className={`group flex min-h-16 items-center gap-4 rounded-md border px-4 text-left shadow-sm transition ${activeProgramIndex === index ? 'border-[#20a9ca] bg-cyan-50' : 'border-slate-200 bg-white hover:border-slate-400'}`}>
@@ -176,10 +243,24 @@ export default function PremiumLandingPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3"><span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600">{activeProgram.ages}</span><span className="text-xs font-black uppercase" style={{ color: activeProgram.accent }}>{activeProgram.group}</span></div>
                 <div className="mt-16 max-w-[650px]"><h3 className="text-4xl font-black leading-none text-slate-950 sm:text-6xl">{activeProgram.name}</h3><p className="mt-6 max-w-[560px] text-base leading-7 text-slate-600">{activeProgram.description}</p></div>
                 <div className="mt-10 grid gap-3 sm:grid-cols-3">{activeProgram.benefits.map((benefit) => <div key={benefit} className="flex items-center gap-2 border-t border-slate-200 pt-4 text-sm font-bold text-slate-700"><Check size={16} style={{ color: activeProgram.accent }} />{benefit}</div>)}</div>
-                <div className="mt-auto flex flex-col items-start justify-between gap-5 border-t border-slate-200 pt-7 sm:flex-row sm:items-end"><div><div className="text-3xl font-black text-slate-950">{formatPrice(activeProgram.price)}</div><div className="mt-1 text-xs font-semibold text-slate-500">per bulan · {activeProgram.sessions} sesi per minggu</div></div><button type="button" onClick={() => openRegistration(activeProgram.id)} className="inline-flex h-12 items-center gap-2 rounded-md px-6 text-sm font-extrabold text-[#041018] transition hover:-translate-y-0.5" style={{ backgroundColor: activeProgram.accent }}>Pilih Program <ArrowRight size={17} /></button></div>
+                <div className="mt-auto flex flex-col items-start justify-between gap-6 border-t border-slate-200 pt-7 sm:flex-row sm:items-end">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-extrabold uppercase text-slate-500">Total paket {activePackageMonths} bulan</div>
+                    <div className="mt-1 text-3xl font-black text-slate-950">{formatPrice(activePackageTotal)}</div>
+                    <div className="mt-2 text-sm font-bold text-slate-700">Setara {formatPrice(activeMonthlyEquivalent)}/bulan</div>
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      {activeDiscountPercent > 0 && <span>Harga normal <span className="line-through">{formatPrice(activePackageSubtotal)}</span></span>}
+                      {activeDiscountPercent > 0 && <span className="font-bold text-emerald-700">Hemat {formatPrice(activeDiscountAmount)} ({activeDiscountPercent}%)</span>}
+                      <span>{activeProgram.sessions} sesi per minggu</span>
+                      <span>Tagihan setiap {activeProgram.billingCycleMonths} bulan</span>
+                    </div>
+                    {activeInitialFees > 0 && <div className="mt-2 text-xs font-semibold text-amber-700">Biaya awal di luar paket: {formatPrice(activeInitialFees)}</div>}
+                  </div>
+                  <button type="button" onClick={() => openRegistration(activeProgram.id)} className="inline-flex h-12 shrink-0 items-center gap-2 rounded-md px-6 text-sm font-extrabold text-[#041018] transition hover:-translate-y-0.5" style={{ backgroundColor: activeProgram.accent }}>Pilih Program <ArrowRight size={17} /></button>
+                </div>
               </div>
             </ScrollReveal>
-          </div>
+          </div>}
         </div>
       </section>
 
@@ -215,7 +296,7 @@ export default function PremiumLandingPage() {
 
       <section className="border-y border-slate-200 bg-white py-20 text-slate-950"><div className="mx-auto flex max-w-[1160px] flex-col items-start justify-between gap-8 px-5 lg:flex-row lg:items-center lg:px-8"><div><p className="text-sm font-bold text-[#087f9b]">Siap menemukan kelas yang tepat?</p><h2 className="mt-2 max-w-[760px] text-4xl font-black leading-[1.05] sm:text-5xl">Mulai dari konsultasi singkat bersama tim EdGLO.</h2></div><button type="button" onClick={() => openRegistration()} className="inline-flex h-12 shrink-0 items-center gap-2 rounded-md bg-[#087f9b] px-7 text-sm font-extrabold text-white transition hover:bg-[#f7b51b] hover:text-[#07101b]">Daftar Sekarang <ArrowRight size={17} /></button></div></section>
 
-      <footer className="border-t border-slate-200 bg-white py-12 text-slate-950"><div className="mx-auto grid max-w-[1160px] gap-10 px-5 md:grid-cols-[1.4fr_0.8fr_0.8fr] lg:px-8"><div><div className="landing-footer-brand h-[74px] w-[164px] overflow-hidden"><Image src="/edglo-logo.png" alt="EdGLO" width={512} height={512} className="landing-footer-logo" /></div><p className="mt-4 max-w-sm text-sm leading-6 text-slate-500">Learning center yang membantu anak belajar terarah dan membuat orang tua tetap dekat dengan prosesnya.</p></div><div><div className="text-sm font-black">Jelajahi</div><div className="mt-4 grid gap-3 text-sm text-slate-500"><a href="#program" className="hover:text-[#087f9b]">Program</a><a href="#pengalaman" className="hover:text-[#087f9b]">Cara Belajar</a><a href="#fasilitas" className="hover:text-[#087f9b]">Suasana Kelas</a></div></div><div><div className="text-sm font-black">Akses</div><div className="mt-4 grid gap-3 text-sm text-slate-500"><button type="button" onClick={() => openRegistration()} className="text-left hover:text-[#087f9b]">Daftar Kursus</button><Link href="/login" className="hover:text-[#087f9b]">Login Admin</Link></div></div></div><div className="mx-auto mt-10 flex max-w-[1160px] flex-col gap-2 border-t border-slate-200 px-5 pt-6 text-xs text-slate-400 sm:flex-row sm:justify-between lg:px-8"><span>© 2026 EdGLO Learning Center.</span><span>Learn · Do · Repeat</span></div></footer>
+      <footer className="border-t border-slate-200 bg-white py-12 text-slate-950"><div className="mx-auto grid max-w-[1160px] gap-10 px-5 md:grid-cols-[1.4fr_0.8fr_0.8fr] lg:px-8"><div><div className="landing-footer-brand h-[74px] w-[164px] overflow-hidden"><Image src="/edglo-logo.png" alt="EdGLO" width={512} height={512} className="landing-footer-logo" /></div><p className="mt-4 max-w-sm text-sm leading-6 text-slate-500">Learning center yang membantu anak belajar terarah dan membuat orang tua tetap dekat dengan prosesnya.</p></div><div><div className="text-sm font-black">Jelajahi</div><div className="mt-4 grid gap-3 text-sm text-slate-500"><a href="#program" className="hover:text-[#087f9b]">Program</a><a href="#pengalaman" className="hover:text-[#087f9b]">Cara Belajar</a><a href="#fasilitas" className="hover:text-[#087f9b]">Suasana Kelas</a></div></div><div><div className="text-sm font-black">Akses</div><div className="mt-4 grid gap-3 text-sm text-slate-500"><button type="button" onClick={() => openRegistration()} className="text-left hover:text-[#087f9b]">Daftar Kursus</button><Link href="/login" className="hover:text-[#087f9b]">Portal Admin</Link><Link href="/teacher/login" className="hover:text-[#087f9b]">Portal Guru</Link></div></div></div><div className="mx-auto mt-10 flex max-w-[1160px] flex-col gap-2 border-t border-slate-200 px-5 pt-6 text-xs text-slate-400 sm:flex-row sm:justify-between lg:px-8"><span>© 2026 EdGLO Learning Center.</span><span>Learn · Do · Repeat</span></div></footer>
 
       <CourseRegistration key={`${selectedProgram}-${registrationOpen}`} open={registrationOpen} programs={programs} initialProgram={selectedProgram} onClose={() => setRegistrationOpen(false)} />
     </main>

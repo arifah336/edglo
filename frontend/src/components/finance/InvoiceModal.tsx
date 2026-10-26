@@ -14,7 +14,7 @@ type Props = {
 };
 
 function dueDateFor(student: Student | undefined, month: number, year: number) {
-  const joinDay = student ? new Date(`${student.joinDate}T00:00:00`).getDate() : 1;
+  const joinDay = student ? new Date(`${student.billingStartedAt ?? student.joinDate}T00:00:00`).getDate() : 1;
   const maxDay = new Date(year, month, 0).getDate();
   return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(joinDay, maxDay)).padStart(2, '0')}`;
 }
@@ -33,7 +33,9 @@ export default function InvoiceModal({ students, programs, initialMonth, initial
   const program = programs.find((item) => item.id === student?.programId);
   const registrationFee = includeRegistration ? (student?.registrationFee ?? REGISTRATION_FEE) : 0;
   const bookFee = includeBook ? (student?.bookFee ?? BOOK_FEE) : 0;
-  const total = Math.max(0, (program?.price ?? 0) + registrationFee + bookFee + otherFee - discount);
+  const billingCycleMonths = student?.billingCycleMonths ?? 2;
+  const billingAmount = student?.billingAmount ?? (program?.price ?? 0) * billingCycleMonths;
+  const total = Math.max(0, billingAmount + registrationFee + bookFee + otherFee - discount);
 
   const submit = () => {
     if (!student || !program) return;
@@ -41,7 +43,7 @@ export default function InvoiceModal({ students, programs, initialMonth, initial
       studentId: student.id,
       month,
       year,
-      programFee: program.price,
+      programFee: billingAmount,
       registrationFee,
       bookFee,
       otherFee,
@@ -60,9 +62,9 @@ export default function InvoiceModal({ students, programs, initialMonth, initial
           <div className="field-wide"><label className="input-label">Murid *</label><select className="input-field" value={studentId} onChange={(event) => setStudentId(event.target.value)}>{activeStudents.map((item) => <option value={item.id} key={item.id}>{item.fullName}</option>)}</select></div>
           <div><label className="input-label">Bulan</label><select className="input-field" value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTH_NAMES.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></div>
           <div><label className="input-label">Tahun</label><select className="input-field" value={year} onChange={(event) => setYear(Number(event.target.value))}>{[2025, 2026, 2027].map((item) => <option value={item} key={item}>{item}</option>)}</select></div>
-          <div className="field-wide invoice-program-preview"><span>Program</span><strong>{program?.name ?? '-'}</strong><b>{formatCurrency(program?.price ?? 0)} / bulan</b></div>
+          <div className="field-wide invoice-program-preview"><span>Program & paket</span><strong>{program?.name ?? '-'}</strong><b>{formatCurrency(billingAmount)} / {billingCycleMonths} bulan</b></div>
           <label className="fee-toggle"><input type="checkbox" checked={includeRegistration} onChange={(event) => setIncludeRegistration(event.target.checked)} /><span><strong>Biaya pendaftaran</strong><small>{formatCurrency(REGISTRATION_FEE)}</small></span></label>
-          <label className="fee-toggle"><input type="checkbox" checked={includeBook} onChange={(event) => setIncludeBook(event.target.checked)} /><span><strong>Biaya buku</strong><small>{formatCurrency(BOOK_FEE)} / 2 bulan</small></span></label>
+          <label className="fee-toggle"><input type="checkbox" checked={includeBook} onChange={(event) => setIncludeBook(event.target.checked)} /><span><strong>Biaya buku</strong><small>{formatCurrency(BOOK_FEE)}</small></span></label>
           <div><label className="input-label">Biaya lainnya</label><input className="input-field" type="number" min="0" value={otherFee} onChange={(event) => setOtherFee(Math.max(0, Number(event.target.value) || 0))} /></div>
           <div><label className="input-label">Diskon / promo</label><input className="input-field" type="number" min="0" value={discount} onChange={(event) => setDiscount(Math.max(0, Number(event.target.value) || 0))} /></div>
           <div className="field-wide"><label className="input-label">Catatan</label><textarea className="input-field" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Catatan pembayaran (opsional)" /></div>

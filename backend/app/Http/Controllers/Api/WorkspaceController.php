@@ -39,13 +39,13 @@ class WorkspaceController extends Controller
         $this->packageExpiry->deactivateExpiredStudents();
         Payment::where('status', 'pending')->whereDate('due_date', '<', today())->update(['status' => 'overdue']);
 
-        $programs = Program::query()->orderBy('name')->get();
+        $programs = Program::query()->withCount('activeStudents')->orderBy('name')->get();
         $students = Student::query()
             ->with(['schedules', 'statusHistories'])
             ->orderBy('id')
             ->get();
         $teachers = Teacher::query()
-            ->with('statusHistories')
+            ->with(['statusHistories', 'user'])
             ->withCount(['students' => fn ($query) => $query->where('status', 'active')])
             ->orderBy('full_name')
             ->get();

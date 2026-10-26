@@ -1,6 +1,6 @@
 ﻿export type UserRole = 'super_admin' | 'admin';
 export type StudentStatus = 'active' | 'off';
-export type AccountRole = UserRole | 'parent';
+export type AccountRole = UserRole | 'parent' | 'teacher';
 export type TeacherStatus = 'active' | 'off';
 export type EmploymentType = 'fulltime' | 'parttime' | 'magang';
 export type PaymentStatus = 'paid' | 'pending' | 'overdue';
@@ -14,6 +14,7 @@ export type ScheduleChangeReason = 'school_conflict' | 'family' | 'transport' | 
 export type Page =
   | 'dashboard'
   | 'registrations'
+  | 'programs'
   | 'students'
   | 'student-form'
   | 'student-detail'
@@ -37,6 +38,18 @@ export type Program = {
   name: string;
   price: number;
   sessionsPerWeek: number;
+  description?: string;
+  targetAge?: string;
+  defaultPackageMonths?: number;
+  billingCycleMonths?: number;
+  registrationFee?: number;
+  bookFee?: number;
+  discountPercent?: number;
+  discountMinMonths?: number;
+  levelOptions?: string[];
+  levelDurationMonths?: number;
+  isActive?: boolean;
+  activeStudentsCount?: number;
 };
 
 export type ProgramSelection = {
@@ -45,6 +58,12 @@ export type ProgramSelection = {
   months: number;
   sessionsPerWeek?: number;
   monthlyPrice?: number;
+  billingCycleMonths?: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  packageTotal?: number;
+  registrationFee?: number;
+  bookFee?: number;
 };
 
 export type DaySchedule = {
@@ -90,6 +109,9 @@ export type Student = {
   programId: string;
   program?: Program;
   sessionsPerWeek: number;
+  billingAmount?: number;
+  billingCycleMonths?: number;
+  billingStartedAt?: string;
   packageStartedAt?: string;
   packageEndsAt?: string;
   packageSelections?: ProgramSelection[];
@@ -131,6 +153,48 @@ export type Teacher = {
   notes?: string;
   status: TeacherStatus;
   statusHistory: StatusHistory[];
+  hasPortalAccount?: boolean;
+  portalActive?: boolean;
+  portalEnabled?: boolean;
+  portalPassword?: string;
+};
+
+export type StudentProgressLog = {
+  id: string;
+  studentId: string;
+  activityDate: string;
+  activityType: 'reading' | 'practice' | 'homework' | 'achievement';
+  points: number;
+  notes?: string;
+};
+
+export type TeacherPortalStudent = {
+  id: string;
+  fullName: string;
+  photo?: string;
+  programName: string;
+  currentLevel?: string;
+  schedules: DaySchedule[];
+  totalPoints: number;
+  progressLogs: StudentProgressLog[];
+};
+
+export type TeacherPortalClass = {
+  id: string;
+  day: string;
+  time: string;
+  room: string;
+  programName: string;
+  capacity: number;
+  notes?: string;
+  students: Array<{ id: string; fullName: string; photo?: string }>;
+};
+
+export type TeacherOverview = {
+  teacher: Pick<Teacher, 'id' | 'fullName' | 'photo' | 'employmentType'>;
+  summary: { activeStudents: number; weeklySessions: number; pointsThisMonth: number };
+  classes: TeacherPortalClass[];
+  students: TeacherPortalStudent[];
 };
 
 export type Admin = {

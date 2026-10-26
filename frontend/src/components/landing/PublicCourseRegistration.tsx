@@ -12,6 +12,12 @@ type LandingProgram = {
   name: string;
   price: number;
   sessions: number;
+  defaultPackageMonths?: number;
+  billingCycleMonths?: number;
+  registrationFee?: number;
+  bookFee?: number;
+  discountPercent?: number;
+  discountMinMonths?: number;
 };
 
 type Props = {
@@ -23,13 +29,28 @@ type Props = {
 
 type ProgramChoice = { programId: string; months: number };
 
+const packageMonthOptions = (program: LandingProgram) => Array.from(new Set([
+  1,
+  2,
+  3,
+  program.defaultPackageMonths ?? 2,
+  (program.discountPercent ?? 0) > 0 ? program.discountMinMonths ?? 2 : 0,
+]))
+  .filter((months) => months >= 1 && months <= 12)
+  .sort((first, second) => first - second);
+
+const rupiah = (value: number) => `Rp ${Math.round(value).toLocaleString('id-ID')}`;
+
 export default function PublicCourseRegistration({ open, programs, initialProgram = '', onClose }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     parentName: '', email: '', phone: '', childName: '', age: '', address: '',
-    programSelections: (initialProgram ? [{ programId: initialProgram, months: 1 }] : []) as ProgramChoice[],
+    programSelections: (initialProgram ? [{
+      programId: initialProgram,
+      months: programs.find((program) => program.id === initialProgram)?.defaultPackageMonths ?? 1,
+    }] : []) as ProgramChoice[],
     preferredSchedules: [] as Array<{ day: string; time: string }>, notes: '',
   });
 
@@ -40,6 +61,17 @@ export default function PublicCourseRegistration({ open, programs, initialProgra
     program: programs.find((program) => program.id === choice.programId),
   })).filter((item) => item.program);
   const highestFrequency = Math.max(0, ...selectedPrograms.map((item) => item.program?.sessions ?? 0));
+  const packageSummary = selectedPrograms.reduce((summary, item) => {
+    const program = item.program!;
+    const subtotal = program.price * item.months;
+    const discountPercent = item.months >= (program.discountMinMonths ?? 2) ? (program.discountPercent ?? 0) : 0;
+    const discount = Math.round(subtotal * discountPercent / 100);
+    return {
+      subtotal: summary.subtotal + subtotal,
+      discount: summary.discount + discount,
+      fees: summary.fees + (program.bookFee ?? 0),
+    };
+  }, { subtotal: 0, discount: 0, fees: selectedPrograms[0]?.program?.registrationFee ?? 0 });
 
   const close = () => {
     setSubmitted(false);
@@ -53,7 +85,10 @@ export default function PublicCourseRegistration({ open, programs, initialProgra
       programSelections: current.programSelections.some((item) => item.programId === programId)
         ? current.programSelections.filter((item) => item.programId !== programId)
         : current.programSelections.length < 3
-          ? [...current.programSelections, { programId, months: 1 }]
+          ? [...current.programSelections, {
+              programId,
+              months: programs.find((program) => program.id === programId)?.defaultPackageMonths ?? 1,
+            }]
           : current.programSelections,
     }));
   };
@@ -133,16 +168,41 @@ export default function PublicCourseRegistration({ open, programs, initialProgra
             <label className="grid gap-2 text-sm font-bold text-slate-700 sm:col-span-2">Alamat<textarea required rows={3} value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} className="rounded-md border border-slate-300 bg-white px-3 py-3 font-normal text-slate-950" placeholder="Alamat lengkap tempat tinggal" /></label>
 
             <fieldset className="grid gap-3 sm:col-span-2">
-              <div><legend className="text-sm font-bold text-slate-800">Program dan durasi paket</legend><p className="mt-1 text-xs leading-5 text-slate-500">Boleh memilih sampai 3 program. Durasi 1, 2, atau 3 bulan akan dikonfirmasi kembali oleh Admin, termasuk promo yang berlaku.</p></div>
+              <div><legend className="text-sm font-bold text-slate-800">Program dan durasi paket</legend><p className="mt-1 text-xs leading-5 text-slate-500">Boleh memilih sampai 3 program. Durasi awal mengikuti paket program dan masih dapat disesuaikan sebelum dikirim.</p></div>
               <div className="grid gap-3 sm:grid-cols-2">{programs.map((program) => {
                 const choice = form.programSelections.find((item) => item.programId === program.id);
                 const disabled = !choice && form.programSelections.length >= 3;
+                const months = choice?.months ?? program.defaultPackageMonths ?? 1;
+                const subtotal = program.price * months;
+                const appliedDiscount = months >= (program.discountMinMonths ?? 2) ? (program.discountPercent ?? 0) : 0;
+                const discountAmount = Math.round(subtotal * appliedDiscount / 100);
+                const packageTotal = subtotal - discountAmount;
+                const monthlyEquivalent = months > 0 ? Math.round(packageTotal / months) : 0;
+                const initialFees = (program.registrationFee ?? 0) + (program.bookFee ?? 0);
                 return <div key={program.id} className={`rounded-md border p-4 ${choice ? 'border-cyan-400 bg-cyan-50' : 'border-slate-200 bg-white'}`}>
                   <label className={`flex items-start gap-3 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}><input type="checkbox" checked={Boolean(choice)} disabled={disabled} onChange={() => toggleProgram(program.id)} className="mt-1 h-4 w-4 accent-[#087f9b]" /><span className="min-w-0"><strong className="block text-sm text-slate-950">{program.name}</strong><small className="mt-1 block text-xs text-slate-500">{program.sessions}x seminggu - Rp {program.price.toLocaleString('id-ID')}/bulan</small></span></label>
-                  {choice && <label className="mt-4 grid gap-1 text-xs font-bold text-slate-600">Durasi paket<select value={choice.months} onChange={(event) => setMonths(program.id, Number(event.target.value))} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950"><option value={1}>1 bulan</option><option value={2}>2 bulan</option><option value={3}>3 bulan / opsi promo 2+1</option></select></label>}
+                  {choice && <div className="mt-4 grid gap-2">
+                    <label className="grid gap-1 text-xs font-bold text-slate-600">Durasi paket
+                      <select value={choice.months} onChange={(event) => setMonths(program.id, Number(event.target.value))} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950">
+                        {packageMonthOptions(program).map((optionMonths) => {
+                          const isDefault = optionMonths === program.defaultPackageMonths;
+                          const getsDiscount = (program.discountPercent ?? 0) > 0 && optionMonths >= (program.discountMinMonths ?? 2);
+                          return <option key={optionMonths} value={optionMonths}>{optionMonths} bulan{isDefault ? ' (paket awal)' : getsDiscount ? ` (diskon ${program.discountPercent}%)` : ''}</option>;
+                        })}
+                      </select>
+                    </label>
+                    <div className="grid gap-1 rounded-md bg-white/80 px-3 py-2 text-xs leading-5 text-slate-600">
+                      <span className="flex justify-between gap-3 text-sm text-slate-950"><span className="font-bold">Total paket {months} bulan</span><strong>{rupiah(packageTotal)}</strong></span>
+                      <span className="flex justify-between gap-3 border-b border-slate-200 pb-1"><span>Setara per bulan</span><strong className="text-slate-800">{rupiah(monthlyEquivalent)}</strong></span>
+                      <span className="flex justify-between gap-3"><span>Harga normal</span><strong className={appliedDiscount > 0 ? 'text-slate-500 line-through' : 'text-slate-800'}>{rupiah(subtotal)}</strong></span>
+                      {appliedDiscount > 0 && <span className="flex justify-between gap-3 text-emerald-700"><span>Potongan {appliedDiscount}%</span><strong>-{rupiah(discountAmount)}</strong></span>}
+                      {initialFees > 0 && <span className="flex justify-between gap-3 text-amber-700"><span>Biaya awal di luar paket</span><strong>{rupiah(initialFees)}</strong></span>}
+                      <span className="mt-1 text-[11px] text-slate-500">{program.sessions} sesi per minggu. Tagihan dicatat setiap {program.billingCycleMonths ?? 1} bulan.</span>
+                    </div>
+                  </div>}
                 </div>;
               })}</div>
-              {selectedPrograms.length > 0 && <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3"><PackageCheck size={19} className="mt-0.5 shrink-0 text-amber-700" /><div><strong className="text-sm text-slate-900">{selectedPrograms.length} program dipilih</strong><p className="mt-1 text-xs leading-5 text-slate-600">Regular berjalan 3x seminggu dan Everyday 5x seminggu. Frekuensi tertinggi pilihan saat ini {highestFrequency}x seminggu. Nominal akhir mengikuti promo yang dikonfirmasi Admin.</p></div></div>}
+              {selectedPrograms.length > 0 && <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3"><PackageCheck size={19} className="mt-0.5 shrink-0 text-amber-700" /><div className="min-w-0 flex-1"><strong className="text-sm text-slate-900">Estimasi awal {selectedPrograms.length} program: {rupiah(packageSummary.subtotal - packageSummary.discount + packageSummary.fees)}</strong><p className="mt-1 text-xs leading-5 text-slate-600">Harga normal {rupiah(packageSummary.subtotal)}, potongan {rupiah(packageSummary.discount)}, dan biaya awal {rupiah(packageSummary.fees)}. Frekuensi tertinggi {highestFrequency}x seminggu. Admin tetap mengonfirmasi nominal final.</p></div></div>}
             </fieldset>
 
             <fieldset className="grid gap-3 sm:col-span-2"><div><legend className="text-sm font-bold text-slate-800">Ketersediaan hari dan jam</legend><p className="mt-1 text-xs leading-5 text-slate-500">Cukup isi hari yang memungkinkan. Ini belum menjadi jadwal final; Admin akan mencocokkannya dengan program dan guru.</p></div>

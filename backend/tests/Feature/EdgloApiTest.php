@@ -102,6 +102,7 @@ class EdgloApiTest extends TestCase
         ]);
 
         $response->assertCreated()->assertJsonPath('data.id', 'S001')->assertJsonPath('data.fullName', 'Murid Pengujian');
+        $response->assertJsonPath('data.billingAmount', 1200000)->assertJsonPath('data.billingCycleMonths', 2);
         $this->actingAs($admin, 'sanctum')->postJson('/api/v1/students/S001/deactivate', [
             'date' => '2026-08-15', 'reason' => 'Pengujian status',
         ])->assertOk()->assertJsonPath('data.status', 'off');
@@ -148,10 +149,10 @@ class EdgloApiTest extends TestCase
         $this->actingAs($admin, 'sanctum')->postJson('/api/v1/payments', [
             'studentId' => 'S001', 'month' => 8, 'year' => 2026, 'dueDate' => '2026-08-10',
         ])->assertCreated()
-            ->assertJsonPath('data.programFee', 600000)
+            ->assertJsonPath('data.programFee', 1200000)
             ->assertJsonPath('data.registrationFee', 100000)
             ->assertJsonPath('data.bookFee', 100000)
-            ->assertJsonPath('data.total', 800000);
+            ->assertJsonPath('data.total', 1400000);
     }
 
     public function test_class_sessions_are_paginated_ten_rows_by_default(): void
@@ -177,6 +178,165 @@ class EdgloApiTest extends TestCase
             ->assertJsonCount(10, 'data')
             ->assertJsonPath('meta.total', 12)
             ->assertJsonPath('meta.last_page', 2);
+    }
+
+    public function test_student_reactivation_preserves_history_and_restarts_package_billing(): void
+    {
+        $admin = User::factory()->create(['code' => 'A004', 'role' => 'admin']);
+        $this->seedAcademicReferences();
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/students', [
+            'fullName' => 'Murid Paket Khusus',
+            'parentName' => 'Orang Tua Paket',
+            'address' => 'Batam',
+            'phone' => '081234567891',
+            'programId' => 'calistung-regular',
+            'sessionsPerWeek' => 3,
+            'billingAmount' => 950000,
+            'billingCycleMonths' => 2,
+            'joinDate' => '2026-07-05',
+            'packageStartedAt' => '2026-07-05',
+            'packageEndsAt' => '2026-09-04',
+            'teacherId' => 'T001',
+            'schedules' => [['day' => 'Senin', 'time' => '15.00']],
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/students/S001/deactivate', [
+            'date' => '2026-08-20', 'reason' => 'Istirahat sementara.',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/students/S001/activate', [
+            'date' => '2026-09-05',
+            'reason' => 'Melanjutkan belajar.',
+            'billingAmount' => 875000,
+            'billingCycleMonths' => 2,
+            'packageEndsAt' => '2026-11-04',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'active')
+            ->assertJsonPath('data.leaveDate', null)
+            ->assertJsonPath('data.billingStartedAt', '2026-09-05')
+            ->assertJsonPath('data.billingAmount', 875000)
+            ->assertJsonCount(3, 'data.statusHistory');
+
+        $this->assertDatabaseHas('students', [
+            'id' => 'S001', 'billing_amount' => 875000, 'billing_cycle_months' => 2,
+        ]);
+        $this->assertSame('2026-09-05', Student::query()->findOrFail('S001')->billing_started_at->toDateString());
+        $this->assertDatabaseCount('student_status_histories', 3);
+
+        $this->postJson('/api/v1/payments/generate-month', ['month' => 9, 'year' => 2026])
+            ->assertOk()->assertJsonPath('created', 1);
+        $this->assertDatabaseHas('payments', [
+            'student_id' => 'S001', 'month' => 9, 'year' => 2026,
+            'program_fee' => 875000, 'due_date' => '2026-09-05 00:00:00',
+        ]);
+        $this->postJson('/api/v1/payments/generate-month', ['month' => 10, 'year' => 2026])
+            ->assertOk()->assertJsonPath('created', 0);
+    }
+
+    public function test_teacher_uses_a_separate_login_and_only_sees_assigned_active_students(): void
+    {
+        $this->seedAcademicReferences();
+        $teacherUser = User::factory()->create([
+            'code' => 'G001', 'name' => 'Guru Pengujian', 'email' => 'guru.portal@edglo.test',
+            'password' => 'guru12345', 'role' => 'teacher', 'is_active' => true,
+        ]);
+        Teacher::query()->whereKey('T001')->update(['user_id' => $teacherUser->id]);
+        Teacher::create([
+            'id' => 'T002', 'full_name' => 'Guru Lain', 'address' => 'Batam',
+            'birth_place' => 'Batam', 'birth_date' => '1994-01-01', 'religion' => 'Islam',
+            'email' => 'guru.lain@edglo.test', 'phone' => '08124', 'last_education' => 'S1',
+            'join_date' => '2025-01-01', 'employment_type' => 'fulltime', 'status' => 'active',
+        ]);
+        foreach ([
+            ['S001', 'Murid Aktif', 'T001', 'active'],
+            ['S002', 'Murid Off', 'T001', 'off'],
+            ['S003', 'Murid Guru Lain', 'T002', 'active'],
+        ] as [$id, $name, $teacherId, $status]) {
+            Student::create([
+                'id' => $id, 'full_name' => $name, 'parent_name' => 'Orang Tua',
+                'address' => 'Batam', 'phone' => '08123', 'program_id' => 'calistung-regular',
+                'sessions_per_week' => 3, 'join_date' => '2026-08-10',
+                'teacher_id' => $teacherId, 'status' => $status,
+            ]);
+        }
+        $class = ClassSession::create([
+            'id' => 'CL001', 'day' => 'Senin', 'time' => '15:00',
+            'teacher_id' => 'T001', 'program_id' => 'calistung-regular',
+            'room' => 'Ruang 1', 'capacity' => 8, 'is_active' => true,
+        ]);
+        $class->students()->attach('S001');
+
+        $this->postJson('/api/v1/auth/admin/login', [
+            'email' => $teacherUser->email, 'password' => 'guru12345',
+        ])->assertForbidden();
+        $this->postJson('/api/v1/auth/teacher/login', [
+            'email' => $teacherUser->email, 'password' => 'guru12345',
+        ])->assertOk()->assertJsonPath('user.role', 'teacher');
+
+        $this->actingAs($teacherUser, 'sanctum')->getJson('/api/v1/teacher/overview')
+            ->assertOk()
+            ->assertJsonPath('data.summary.activeStudents', 1)
+            ->assertJsonPath('data.summary.weeklySessions', 1)
+            ->assertJsonPath('data.classes.0.room', 'Ruang 1')
+            ->assertJsonPath('data.classes.0.students.0.id', 'S001')
+            ->assertJsonCount(1, 'data.students')
+            ->assertJsonPath('data.students.0.id', 'S001');
+        $this->postJson('/api/v1/teacher/progress', [
+            'studentId' => 'S001', 'activityDate' => '2026-10-25',
+            'activityType' => 'reading', 'points' => 10, 'notes' => 'Membaca mandiri.',
+        ])->assertCreated()->assertJsonPath('data.points', 10);
+        $this->postJson('/api/v1/teacher/progress', [
+            'studentId' => 'S003', 'activityDate' => '2026-10-25',
+            'activityType' => 'reading', 'points' => 10,
+        ])->assertNotFound();
+    }
+
+    public function test_super_admin_can_create_a_teacher_with_a_working_portal_account(): void
+    {
+        $owner = User::factory()->create(['code' => 'A006', 'role' => 'super_admin']);
+
+        $response = $this->actingAs($owner, 'sanctum')->post('/api/v1/teachers', [
+            'fullName' => 'Guru Portal Baru',
+            'address' => 'Batam Center',
+            'birthPlace' => 'Batam',
+            'birthDate' => '1997-05-10',
+            'religion' => 'Islam',
+            'email' => 'guru.baru@edglo.test',
+            'phone' => '081234567899',
+            'lastEducation' => 'S1',
+            'joinDate' => '2026-10-25',
+            'employmentType' => 'fulltime',
+            'portalEnabled' => '1',
+            'portalPassword' => 'guru12345',
+        ], ['Accept' => 'application/json']);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.fullName', 'Guru Portal Baru')
+            ->assertJsonPath('data.hasPortalAccount', true)
+            ->assertJsonPath('data.portalActive', true);
+        $this->assertDatabaseHas('users', [
+            'email' => 'guru.baru@edglo.test', 'role' => 'teacher', 'is_active' => true,
+        ]);
+        $this->postJson('/api/v1/auth/teacher/login', [
+            'email' => 'guru.baru@edglo.test', 'password' => 'guru12345',
+        ])->assertOk()->assertJsonPath('user.role', 'teacher');
+    }
+
+    public function test_schedule_report_can_be_downloaded_as_pdf(): void
+    {
+        $owner = User::factory()->create(['code' => 'A005', 'role' => 'super_admin']);
+        $this->seedAcademicReferences();
+        ClassSession::create([
+            'id' => 'CL001', 'day' => 'Senin', 'time' => '15:00',
+            'teacher_id' => 'T001', 'program_id' => 'calistung-regular',
+            'room' => 'Ruang 1', 'capacity' => 8, 'is_active' => true,
+        ]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->get('/api/v1/reports/download?type=schedule&paper=a4&orientation=landscape')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
     }
 
     private function seedAcademicReferences(): void

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StudentRequest;
 use App\Http\Resources\StudentResource;
+use App\Models\Program;
 use App\Models\Student;
 use App\Services\IdGenerator;
 use App\Services\PackageExpiryService;
@@ -63,6 +64,9 @@ class StudentController extends Controller
             unset($data['schedules'], $data['photo']);
             $data['id'] = $this->ids->next(Student::class, 'S', 3);
             $data['status'] = 'active';
+            $data['billing_cycle_months'] ??= 2;
+            $data['billing_amount'] ??= (int) Program::query()->whereKey($data['program_id'])->value('price') * $data['billing_cycle_months'];
+            $data['billing_started_at'] ??= $data['package_started_at'] ?? $data['join_date'];
             $defaults = $this->programLevels->defaultsFor($data['program_id']);
             $data['current_level'] ??= $defaults['current_level'];
             $data['level_duration_months'] ??= $defaults['level_duration_months'];
@@ -128,11 +132,25 @@ class StudentController extends Controller
 
     public function activate(Request $request, Student $student): StudentResource
     {
-        $data = $request->validate(['date' => ['required', 'date'], 'reason' => ['nullable', 'string', 'max:1000']]);
+        $data = $request->validate([
+            'date' => ['required', 'date'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'billingAmount' => ['nullable', 'integer', 'min:0'],
+            'billingCycleMonths' => ['nullable', 'integer', 'between:1,12'],
+            'packageEndsAt' => ['nullable', 'date', 'after_or_equal:date'],
+        ]);
         abort_if($student->status === 'active', 422, 'Murid sudah aktif.');
 
         DB::transaction(function () use ($request, $student, $data) {
-            $student->update(['status' => 'active', 'leave_date' => null]);
+            $student->update([
+                'status' => 'active',
+                'leave_date' => null,
+                'billing_started_at' => $data['date'],
+                'package_started_at' => $data['date'],
+                'package_ends_at' => $data['packageEndsAt'] ?? null,
+                'billing_amount' => $data['billingAmount'] ?? $student->billing_amount,
+                'billing_cycle_months' => $data['billingCycleMonths'] ?? $student->billing_cycle_months,
+            ]);
             $student->statusHistories()->create([
                 'date' => $data['date'], 'action' => 'activated', 'reason' => $data['reason'] ?? null,
                 'changed_by' => $request->user()->id, 'changed_by_name' => $request->user()->name,

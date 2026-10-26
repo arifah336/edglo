@@ -13,6 +13,7 @@ use App\Services\IdGenerator;
 use App\Services\ProgramLevelService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -183,12 +184,19 @@ class CourseRegistrationController extends Controller
             $programSelections = collect($registration->program_selections ?: [[
                 'programId' => $program->id,
                 'programName' => $program->name,
-                'months' => 1,
+                'months' => 2,
                 'sessionsPerWeek' => $program->sessions_per_week,
                 'monthlyPrice' => $program->price,
+                'packageTotal' => $program->price * 2,
+                'registrationFee' => $program->registration_fee,
+                'bookFee' => $program->book_fee,
             ]]);
             $longestPackage = max(1, (int) $programSelections->max('months'));
-            $packageEnd = \Illuminate\Support\Carbon::parse($joinDate)->addMonthsNoOverflow($longestPackage)->subDay()->toDateString();
+            $billingAmount = (int) $programSelections->sum(fn (array $selection) => $selection['packageTotal']
+                ?? (((int) ($selection['monthlyPrice'] ?? 0)) * max(1, (int) ($selection['months'] ?? 1))));
+            $registrationFee = (int) ($programSelections->first()['registrationFee'] ?? 0);
+            $bookFee = (int) $programSelections->sum(fn (array $selection) => (int) ($selection['bookFee'] ?? 0));
+            $packageEnd = Carbon::parse($joinDate)->addMonthsNoOverflow($longestPackage)->subDay()->toDateString();
             $student = Student::create([
                 'id' => $this->ids->next(Student::class, 'S', 3),
                 'parent_user_id' => $registration->parent_user_id,
@@ -198,13 +206,19 @@ class CourseRegistrationController extends Controller
                 'phone' => $registration->parent_phone ?? $registration->parentUser?->phone,
                 'program_id' => $program->id,
                 'sessions_per_week' => $program->sessions_per_week,
+                'billing_amount' => $billingAmount,
+                'billing_cycle_months' => $longestPackage,
+                'billing_started_at' => $joinDate,
                 'package_started_at' => $joinDate,
                 'package_ends_at' => $packageEnd,
                 'package_selections' => $programSelections->all(),
                 'join_date' => $joinDate,
-                'current_level' => $levelDefaults['current_level'],
+                'current_level' => $program->level_options[0] ?? $levelDefaults['current_level'],
                 'level_started_at' => $joinDate,
-                'level_duration_months' => $levelDefaults['level_duration_months'],
+                'level_duration_months' => $program->level_duration_months ?? $levelDefaults['level_duration_months'],
+                'registration_fee' => $registrationFee,
+                'book_fee' => $bookFee,
+                'fee_notes' => 'Biaya awal dan promo mengikuti paket pendaftaran yang telah dikonfirmasi.',
                 'notes' => $registration->notes,
                 'status' => 'active',
             ]);

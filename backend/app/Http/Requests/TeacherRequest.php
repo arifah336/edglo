@@ -16,6 +16,7 @@ class TeacherRequest extends FormRequest
             'leave_date' => 'leaveDate', 'employment_type' => 'employmentType',
             'emergency_contact_name' => 'emergencyContactName',
             'emergency_contact_phone' => 'emergencyContactPhone',
+            'portal_password' => 'portalPassword', 'portal_enabled' => 'portalEnabled',
         ];
         foreach ($map as $snake => $camel) {
             if (! $this->has($snake) && $this->has($camel)) {
@@ -33,6 +34,10 @@ class TeacherRequest extends FormRequest
     {
         /** @var Teacher|null $teacher */
         $teacher = $this->route('teacher');
+        $emailRules = ['required', 'email', 'max:190', Rule::unique('teachers', 'email')->ignore($teacher?->id, 'id')];
+        if ($this->boolean('portal_enabled') || $teacher?->user_id) {
+            $emailRules[] = Rule::unique('users', 'email')->ignore($teacher?->user_id);
+        }
 
         return [
             'full_name' => ['required', 'string', 'max:150'],
@@ -40,7 +45,7 @@ class TeacherRequest extends FormRequest
             'birth_place' => ['required', 'string', 'max:100'],
             'birth_date' => ['required', 'date', 'before:today'],
             'religion' => ['required', Rule::in(['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'])],
-            'email' => ['required', 'email', 'max:190', Rule::unique('teachers', 'email')->ignore($teacher?->id, 'id')],
+            'email' => $emailRules,
             'phone' => ['required', 'string', 'max:30'],
             'emergency_contact_name' => ['nullable', 'string', 'max:150'],
             'emergency_contact_phone' => ['nullable', 'string', 'max:30'],
@@ -50,6 +55,8 @@ class TeacherRequest extends FormRequest
             'photo' => ['nullable', 'image', 'max:2048'],
             'employment_type' => ['required', Rule::in(['fulltime', 'parttime', 'magang'])],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'portal_enabled' => ['sometimes', 'boolean'],
+            'portal_password' => [Rule::requiredIf($this->boolean('portal_enabled') && ! $teacher?->user_id), 'nullable', 'string', 'min:8', 'max:100'],
         ];
     }
 }

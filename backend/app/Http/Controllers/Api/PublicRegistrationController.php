@@ -28,7 +28,7 @@ class PublicRegistrationController extends Controller
             'address' => ['required', 'string', 'max:1000'],
             'programSelections' => ['required', 'array', 'min:1', 'max:3'],
             'programSelections.*.programId' => ['required', 'string', 'distinct', 'exists:programs,id'],
-            'programSelections.*.months' => ['required', 'integer', Rule::in([1, 2, 3])],
+            'programSelections.*.months' => ['required', 'integer', 'between:1,12'],
             'preferredSchedules' => ['required', 'array', 'min:1', 'max:6'],
             'preferredSchedules.*.day' => ['required', 'string', 'distinct', Rule::in(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'])],
             'preferredSchedules.*.time' => ['required', 'regex:/^(?:[01]\d|2[0-3]):[0-5]\d$/'],
@@ -43,13 +43,25 @@ class PublicRegistrationController extends Controller
 
         $selections = collect($data['programSelections'])->map(function (array $selection) use ($programs) {
             $program = $programs->get($selection['programId']);
+            $months = (int) $selection['months'];
+            $subtotal = (int) $program->price * $months;
+            $discountPercent = $months >= (int) $program->discount_min_months
+                ? (int) $program->discount_percent
+                : 0;
+            $discountAmount = (int) round($subtotal * $discountPercent / 100);
 
             return [
                 'programId' => $program->id,
                 'programName' => $program->name,
-                'months' => (int) $selection['months'],
+                'months' => $months,
                 'sessionsPerWeek' => (int) $program->sessions_per_week,
                 'monthlyPrice' => (int) $program->price,
+                'billingCycleMonths' => (int) $program->billing_cycle_months,
+                'discountPercent' => $discountPercent,
+                'discountAmount' => $discountAmount,
+                'packageTotal' => $subtotal - $discountAmount,
+                'registrationFee' => (int) $program->registration_fee,
+                'bookFee' => (int) $program->book_fee,
             ];
         })->values();
 

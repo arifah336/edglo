@@ -44,7 +44,17 @@ class EdgloSeeder extends Seeder
             ['bimbel-everyday', 'Bimbel Everyday', 1000000, 5], ['english-regular', 'English Regular', 500000, 3],
             ['english-everyday', 'English Everyday', 900000, 5],
         ] as [$id, $name, $price, $sessions]) {
-            Program::create(['id' => $id, 'name' => $name, 'price' => $price, 'sessions_per_week' => $sessions, 'is_active' => true]);
+            Program::create([
+                'id' => $id,
+                'name' => $name,
+                'price' => $price,
+                'sessions_per_week' => $sessions,
+                'default_package_months' => 2,
+                'billing_cycle_months' => 2,
+                'registration_fee' => 100000,
+                'book_fee' => 100000,
+                'is_active' => true,
+            ]);
         }
     }
 

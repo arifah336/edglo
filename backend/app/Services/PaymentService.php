@@ -21,13 +21,14 @@ class PaymentService
             $month = (int) $attributes['month'];
             $year = (int) $attributes['year'];
             $dueDate = Carbon::parse($attributes['due_date']);
-            $programFee = (int) ($attributes['program_fee'] ?? $student->program->price);
+            $billingCycle = max(1, (int) $student->billing_cycle_months);
+            $programFee = (int) ($attributes['program_fee'] ?? ($student->billing_amount > 0 ? $student->billing_amount : $student->program->price * $billingCycle));
             $isFirstInvoice = ! $student->payments()->exists();
             $periodStart = Carbon::create($year, $month, 1);
             $joinPeriod = $student->join_date->copy()->startOfMonth();
             $monthsSinceJoining = (int) max(0, $joinPeriod->diffInMonths($periodStart, false));
             $registrationFee = (int) ($attributes['registration_fee'] ?? ($isFirstInvoice ? $student->registration_fee : 0));
-            $bookFee = (int) ($attributes['book_fee'] ?? ($monthsSinceJoining % 2 === 0 ? $student->book_fee : 0));
+            $bookFee = (int) ($attributes['book_fee'] ?? ($isFirstInvoice ? $student->book_fee : 0));
             $otherFee = (int) ($attributes['other_fee'] ?? ($isFirstInvoice ? $student->other_fee : 0));
             $discount = (int) ($attributes['discount'] ?? ($isFirstInvoice ? $student->discount : 0));
             $paidDate = isset($attributes['paid_date']) ? Carbon::parse($attributes['paid_date']) : null;
@@ -74,16 +75,25 @@ class PaymentService
 
         Student::query()
             ->with('program')
-            ->whereDate('join_date', '<=', $periodEnd)
-            ->where(fn ($query) => $query->whereNull('leave_date')->orWhereDate('leave_date', '>=', $periodEnd->copy()->startOfMonth()))
+            ->where('status', 'active')
+            ->where(fn ($query) => $query
+                ->whereDate('billing_started_at', '<=', $periodEnd)
+                ->orWhere(fn ($fallback) => $fallback->whereNull('billing_started_at')->whereDate('join_date', '<=', $periodEnd)))
             ->chunkById(100, function ($students) use ($month, $year, $userId, &$created) {
                 foreach ($students as $student) {
+                    $billingStart = $student->billing_started_at ?? $student->join_date;
+                    $periodStart = Carbon::create($year, $month, 1);
+                    $monthsSinceBillingStart = $billingStart->copy()->startOfMonth()->diffInMonths($periodStart, false);
+                    $billingCycle = max(1, (int) $student->billing_cycle_months);
+                    if ($monthsSinceBillingStart < 0 || $monthsSinceBillingStart % $billingCycle !== 0) {
+                        continue;
+                    }
                     if ($student->payments()->where('month', $month)->where('year', $year)->exists()) {
                         continue;
                     }
 
                     $lastDay = Carbon::create($year, $month, 1)->daysInMonth;
-                    $dueDay = min($student->join_date->day, $lastDay);
+                    $dueDay = min($billingStart->day, $lastDay);
                     $this->create($student, [
                         'month' => $month,
                         'year' => $year,

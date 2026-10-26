@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClassSession;
 use App\Models\Payment;
 use App\Models\Program;
 use App\Models\Student;
@@ -40,7 +41,7 @@ class ReportController extends Controller
     public function download(Request $request)
     {
         $settings = $request->validate([
-            'type' => ['required', Rule::in(['students', 'teachers', 'finance-monthly', 'finance-yearly'])],
+            'type' => ['required', Rule::in(['students', 'teachers', 'schedule', 'finance-monthly', 'finance-yearly'])],
             'month' => ['nullable', 'integer', 'between:1,12'],
             'year' => ['nullable', 'integer', 'between:2020,2100'],
             'paper' => ['nullable', Rule::in(['a4', 'a5', 'letter', 'legal'])],
@@ -80,6 +81,30 @@ class ReportController extends Controller
             ]);
 
             return ['title' => 'Laporan Data Guru', 'columns' => ['ID', 'Nama Guru', 'Kontak', 'Pendidikan', 'Status Kerja', 'Tgl Masuk', 'Status'], 'rows' => $rows];
+        }
+
+        if ($type === 'schedule') {
+            $dayOrder = ['Senin' => 1, 'Selasa' => 2, 'Rabu' => 3, 'Kamis' => 4, 'Jumat' => 5, 'Sabtu' => 6];
+            $rows = ClassSession::query()
+                ->with(['teacher', 'program', 'students'])
+                ->where('is_active', true)
+                ->get()
+                ->sortBy(fn (ClassSession $session) => sprintf('%02d-%s-%s', $dayOrder[$session->day] ?? 9, $session->time, $session->teacher?->full_name))
+                ->values()
+                ->map(fn (ClassSession $session) => [
+                    $session->day,
+                    substr($session->time, 0, 5).' WIB',
+                    $session->teacher?->full_name ?? '-',
+                    $session->program?->name ?? '-',
+                    $session->room,
+                    $session->students->pluck('full_name')->join(', ') ?: 'Belum ada murid',
+                ]);
+
+            return [
+                'title' => 'Jadwal Mengajar Mingguan',
+                'columns' => ['Hari', 'Jam', 'Guru', 'Program', 'Ruang', 'Murid'],
+                'rows' => $rows,
+            ];
         }
 
         if ($type === 'finance-monthly') {

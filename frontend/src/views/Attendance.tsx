@@ -29,8 +29,10 @@ const today = new Date().toISOString().slice(0, 10);
 
 export default function Attendance({ role, students, teachers, sessions, teacherAttendances, studentAbsences, makeUpSchedules, onSaveTeacherAttendance, onDeleteTeacherAttendance, onSaveStudentAbsence, onDeleteStudentAbsence, onSaveMakeUpSchedule, onDeleteMakeUpSchedule }: Props) {
   const { notify } = useToast();
-  const canManage = role === 'admin';
-  const [tab, setTab] = useState<'teacher' | 'student' | 'makeup'>('teacher');
+  const canManageTeacher = role === 'super_admin';
+  const canManageStudent = role === 'admin';
+  const [tab, setTab] = useState<'teacher' | 'student' | 'makeup'>(role === 'super_admin' ? 'teacher' : 'student');
+  const canManage = tab === 'teacher' ? canManageTeacher : canManageStudent;
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [saving, setSaving] = useState(false);
@@ -113,9 +115,9 @@ export default function Attendance({ role, students, teachers, sessions, teacher
       </div>
 
       <div className="segmented-tabs attendance-tabs" role="tablist">
-        <button className={tab === 'teacher' ? 'active' : ''} onClick={() => setTab('teacher')}>Absensi Guru</button>
-        <button className={tab === 'student' ? 'active' : ''} onClick={() => setTab('student')}>Murid Tidak Hadir</button>
-        <button className={tab === 'makeup' ? 'active' : ''} onClick={() => setTab('makeup')}>Jadwal Pengganti</button>
+        {role === 'super_admin' && <button className={tab === 'teacher' ? 'active' : ''} onClick={() => setTab('teacher')}>Absensi Guru</button>}
+        {role === 'admin' && <button className={tab === 'student' ? 'active' : ''} onClick={() => setTab('student')}>Murid Tidak Hadir</button>}
+        {role === 'admin' && <button className={tab === 'makeup' ? 'active' : ''} onClick={() => setTab('makeup')}>Jadwal Pengganti</button>}
       </div>
 
       {tab === 'teacher' && <section className="operation-panel">

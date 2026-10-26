@@ -11,6 +11,13 @@ use Illuminate\Validation\Rule;
 
 class ProgramController extends Controller
 {
+    public function publicIndex()
+    {
+        return ProgramResource::collection(
+            Program::query()->where('is_active', true)->orderBy('name')->get()
+        );
+    }
+
     public function index(Request $request)
     {
         $query = Program::query()->withCount(['activeStudents']);
@@ -50,18 +57,41 @@ class ProgramController extends Controller
 
     private function validated(Request $request, ?Program $program = null): array
     {
-        if (! $request->has('sessions_per_week') && $request->has('sessionsPerWeek')) {
-            $request->merge(['sessions_per_week' => $request->input('sessionsPerWeek')]);
-        }
-        if (! $request->has('is_active') && $request->has('isActive')) {
-            $request->merge(['is_active' => $request->input('isActive')]);
+        $camelCaseFields = [
+            'targetAge' => 'target_age',
+            'sessionsPerWeek' => 'sessions_per_week',
+            'defaultPackageMonths' => 'default_package_months',
+            'billingCycleMonths' => 'billing_cycle_months',
+            'registrationFee' => 'registration_fee',
+            'bookFee' => 'book_fee',
+            'discountPercent' => 'discount_percent',
+            'discountMinMonths' => 'discount_min_months',
+            'levelOptions' => 'level_options',
+            'levelDurationMonths' => 'level_duration_months',
+            'isActive' => 'is_active',
+        ];
+        foreach ($camelCaseFields as $input => $column) {
+            if (! $request->has($column) && $request->has($input)) {
+                $request->merge([$column => $request->input($input)]);
+            }
         }
 
         return $request->validate([
             'id' => [$program ? 'sometimes' : 'required', 'string', 'max:60', Rule::unique('programs', 'id')->ignore($program?->id, 'id')],
             'name' => ['required', 'string', 'max:150', Rule::unique('programs', 'name')->ignore($program?->id, 'id')],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'target_age' => ['nullable', 'string', 'max:100'],
             'price' => ['required', 'integer', 'min:0'],
             'sessions_per_week' => ['required', 'integer', 'between:1,6'],
+            'default_package_months' => ['sometimes', 'integer', 'between:1,12'],
+            'billing_cycle_months' => ['sometimes', 'integer', 'between:1,12'],
+            'registration_fee' => ['sometimes', 'integer', 'min:0'],
+            'book_fee' => ['sometimes', 'integer', 'min:0'],
+            'discount_percent' => ['sometimes', 'integer', 'between:0,100'],
+            'discount_min_months' => ['sometimes', 'integer', 'between:1,12'],
+            'level_options' => ['nullable', 'array', 'max:12'],
+            'level_options.*' => ['string', 'max:30', 'distinct'],
+            'level_duration_months' => ['nullable', 'integer', 'between:1,24'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
     }

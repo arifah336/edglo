@@ -1,4 +1,4 @@
-import type { AcademicRequestType, Admin, AuthUser, ClassSession, CourseRegistration, MakeUpSchedule, ParentOverview, Payment, Program, ScheduleChangeReason, ScheduleChangeRequest, Student, StudentAbsence, Teacher, TeacherAttendance, TeacherPayroll } from '../types';
+import type { AcademicRequestType, Admin, AuthUser, ClassSession, CourseRegistration, MakeUpSchedule, ParentOverview, Payment, Program, ScheduleChangeReason, ScheduleChangeRequest, Student, StudentAbsence, StudentProgressLog, Teacher, TeacherAttendance, TeacherOverview, TeacherPayroll } from '../types';
 
 const API_BASE_URL = '/backend-api/v1';
 
@@ -38,6 +38,30 @@ async function request<T>(path: string, token?: string, init: RequestInit = {}):
   }
 
   return body as T;
+}
+
+async function downloadFile(path: string, token: string, fallbackName: string) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { Accept: 'application/pdf', Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as LaravelErrorBody;
+    throw new ApiError(body.message ?? 'File gagal diunduh.', response.status);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plainName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const filename = encodedName ? decodeURIComponent(encodedName) : plainName ?? fallbackName;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function resource<T>(promise: Promise<Resource<T>>): Promise<T> {
@@ -88,7 +112,7 @@ function studentFormData(data: Partial<Student>, method?: 'PUT') {
   const formData = new FormData();
   const fields: Array<keyof Student> = [
     'fullName', 'birthPlace', 'birthDate', 'parentName', 'address', 'phone', 'programId',
-    'currentLevel', 'levelStartedAt', 'levelDurationMonths', 'sessionsPerWeek', 'packageStartedAt', 'packageEndsAt', 'registrationFee',
+    'currentLevel', 'levelStartedAt', 'levelDurationMonths', 'sessionsPerWeek', 'billingAmount', 'billingCycleMonths', 'billingStartedAt', 'packageStartedAt', 'packageEndsAt', 'registrationFee',
     'bookFee', 'otherFee', 'discount', 'feeNotes', 'joinDate', 'teacherId', 'notes',
   ];
   fields.forEach((field) => appendFormValue(formData, field, data[field]));
@@ -106,7 +130,7 @@ function teacherFormData(data: Partial<Teacher>, method?: 'PUT') {
   const fields: Array<keyof Teacher> = [
     'fullName', 'address', 'birthPlace', 'birthDate', 'religion', 'email', 'phone',
     'emergencyContactName', 'emergencyContactPhone', 'lastEducation', 'joinDate',
-    'employmentType', 'notes',
+    'employmentType', 'notes', 'portalEnabled', 'portalPassword',
   ];
   fields.forEach((field) => appendFormValue(formData, field, data[field]));
   if (data.photoFile) formData.append('photo', data.photoFile);
@@ -139,6 +163,10 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ email, password, deviceName: 'edglo-parent-web' }),
   }),
+  loginTeacher: (email: string, password: string) => request<LoginResponse>('/auth/teacher/login', undefined, {
+    method: 'POST',
+    body: JSON.stringify({ email, password, deviceName: 'edglo-teacher-web' }),
+  }),
   workspace: (token: string) => resource(request<Resource<WorkspaceResponse>>('/workspace', token)),
   me: (token: string) => resource(request<Resource<AuthUser>>('/auth/me', token)),
   logout: (token: string) => request<{ message: string }>('/auth/logout', token, { method: 'POST' }),
@@ -146,6 +174,7 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  publicPrograms: () => collection(request<Collection<Program>>('/public/programs')),
   parentOverview: (token: string) => resource(request<Resource<ParentOverview>>('/parent/overview', token)),
   createAcademicRequest: (token: string, data: ScheduleChangeRequestPayload) => resource(request<Resource<ScheduleChangeRequest>>('/parent/academic-requests', token, {
     method: 'POST',
@@ -160,12 +189,19 @@ export const api = {
     }),
 
   programs: (token: string) => collection(request<Collection<Program>>('/programs?per_page=100', token)),
+  createProgram: (token: string, data: Program) => resource(request<Resource<Program>>('/programs', token, { method: 'POST', body: JSON.stringify(data) })),
+  updateProgram: (token: string, id: string, data: Program) => resource(request<Resource<Program>>(`/programs/${id}`, token, { method: 'PUT', body: JSON.stringify(data) })),
+  deleteProgram: (token: string, id: string) => request<{ message: string }>(`/programs/${id}`, token, { method: 'DELETE' }),
   students: (token: string) => collection(request<Collection<Student>>('/students?per_page=100', token)),
   teachers: (token: string) => collection(request<Collection<Teacher>>('/teachers?per_page=100', token)),
   sessions: (token: string) => collection(request<Collection<ClassSession>>('/class-sessions?per_page=100', token)),
   payments: (token: string) => collection(request<Collection<Payment>>('/payments?per_page=100', token)),
   admins: (token: string) => collection(request<Collection<Admin>>('/admins?per_page=100', token)),
   registrations: (token: string) => collection(request<Collection<CourseRegistration>>('/registrations?per_page=100', token)),
+  teacherOverview: (token: string) => resource(request<Resource<TeacherOverview>>('/teacher/overview', token)),
+  saveStudentProgress: (token: string, data: Partial<StudentProgressLog>) => resource(request<Resource<StudentProgressLog>>('/teacher/progress', token, { method: 'POST', body: JSON.stringify(data) })),
+  deleteStudentProgress: (token: string, id: string) => request<{ message: string }>(`/teacher/progress/${id}`, token, { method: 'DELETE' }),
+  downloadSchedule: (token: string) => downloadFile('/reports/download?type=schedule&paper=a4&orientation=landscape&show_signature=1', token, 'EdGLO-Jadwal-Guru.pdf'),
 
   createStudent: (token: string, data: Partial<Student>) => resource(request<Resource<Student>>('/students', token, { method: 'POST', body: studentFormData(data) })),
   updateStudent: (token: string, id: string, data: Partial<Student>) => resource(request<Resource<Student>>(`/students/${id}`, token, { method: 'POST', body: studentFormData(data, 'PUT') })),
@@ -173,7 +209,13 @@ export const api = {
     const history = student.statusHistory.at(-1);
     return resource(request<Resource<Student>>(`/students/${student.id}/${student.status === 'off' ? 'deactivate' : 'activate'}`, token, {
       method: 'POST',
-      body: JSON.stringify({ date: history?.date, reason: history?.reason }),
+      body: JSON.stringify({
+        date: history?.date,
+        reason: history?.reason,
+        billingAmount: student.billingAmount,
+        billingCycleMonths: student.billingCycleMonths,
+        packageEndsAt: student.packageEndsAt,
+      }),
     }));
   },
   createTeacher: (token: string, data: Partial<Teacher>) => resource(request<Resource<Teacher>>('/teachers', token, { method: 'POST', body: teacherFormData(data) })),

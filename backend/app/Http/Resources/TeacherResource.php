@@ -28,6 +28,8 @@ class TeacherResource extends JsonResource
             'employmentType' => $this->employment_type,
             'notes' => $this->notes,
             'status' => $this->status,
+            'hasPortalAccount' => $this->user_id !== null,
+            'portalActive' => (bool) $this->user?->is_active,
             'studentsCount' => $this->whenCounted('students'),
             'statusHistory' => $this->whenLoaded('statusHistories', fn () => $this->statusHistories->map(fn ($history) => [
                 'date' => $history->date->toDateString(),

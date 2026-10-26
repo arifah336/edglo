@@ -10,5 +10,5 @@ test('login orang tua tidak lagi tersedia di navigasi publik', async ({ page }) 
   await page.goto('/parent/login');
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText('Portal Orang Tua', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Masuk Admin' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Portal Admin' }).first()).toBeVisible();
 });

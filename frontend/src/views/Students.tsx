@@ -158,9 +158,33 @@ function levelOptions(programName = '') {
   return { levels: [] as string[], duration: 0 };
 }
 
+function programLevelOptions(program?: Program) {
+  const fallback = levelOptions(program?.name);
+  return {
+    levels: program?.levelOptions?.length ? program.levelOptions : fallback.levels,
+    duration: program?.levelDurationMonths ?? fallback.duration,
+  };
+}
+
+function programBillingAmount(program?: Program) {
+  if (!program) return 0;
+  const packageMonths = program.defaultPackageMonths ?? 2;
+  const billingMonths = program.billingCycleMonths ?? 2;
+  const discount = packageMonths >= (program.discountMinMonths ?? 2) ? (program.discountPercent ?? 0) : 0;
+  return Math.round(program.price * billingMonths * (1 - discount / 100));
+}
+
+function packageEndFrom(start: string, months = 2) {
+  if (!start) return '';
+  const date = new Date(`${start}T00:00:00`);
+  date.setMonth(date.getMonth() + months);
+  date.setDate(date.getDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
 function StudentForm({ student, registration, teachers, programs, onSave, onCancel }: { student?: Student; registration?: CourseRegistration; teachers: Teacher[]; programs: Program[]; onSave: (data: Partial<Student>) => void; onCancel: () => void }) {
   const initialProgram = programs.find((program) => program.id === (student?.programId ?? programs[0]?.id));
-  const initialLevel = levelOptions(initialProgram?.name);
+  const initialLevel = programLevelOptions(initialProgram);
   const [form, setForm] = useState({
     fullName: student?.fullName ?? '',
     birthPlace: student?.birthPlace ?? '',
@@ -174,10 +198,13 @@ function StudentForm({ student, registration, teachers, programs, onSave, onCanc
     levelStartedAt: student?.levelStartedAt ?? student?.joinDate ?? '',
     levelDurationMonths: student?.levelDurationMonths ?? (initialLevel.duration || undefined),
     sessionsPerWeek: student?.sessionsPerWeek ?? initialProgram?.sessionsPerWeek ?? 3,
+    billingAmount: student?.billingAmount ?? programBillingAmount(initialProgram),
+    billingCycleMonths: student?.billingCycleMonths ?? initialProgram?.billingCycleMonths ?? 2,
+    billingStartedAt: student?.billingStartedAt ?? student?.packageStartedAt ?? student?.joinDate ?? '',
     packageStartedAt: student?.packageStartedAt ?? student?.joinDate ?? '',
     packageEndsAt: student?.packageEndsAt ?? '',
-    registrationFee: student?.registrationFee ?? 100000,
-    bookFee: student?.bookFee ?? 100000,
+    registrationFee: student?.registrationFee ?? initialProgram?.registrationFee ?? 100000,
+    bookFee: student?.bookFee ?? initialProgram?.bookFee ?? 100000,
     otherFee: student?.otherFee ?? 0,
     discount: student?.discount ?? 0,
     feeNotes: student?.feeNotes ?? '',
@@ -215,12 +242,24 @@ function StudentForm({ student, registration, teachers, programs, onSave, onCanc
   const requiredScheduleCount = selectedProgram?.sessionsPerWeek ?? form.sessionsPerWeek;
   const requestHasSchedule = applicableRequestedSchedules.length > 0;
   const requestCoversProgram = applicableRequestedSchedules.length >= requiredScheduleCount;
-  const level = levelOptions(selectedProgram?.name);
+  const level = programLevelOptions(selectedProgram);
   const levelDue = form.levelStartedAt && form.levelDurationMonths ? new Date(new Date(`${form.levelStartedAt}T00:00:00`).setMonth(new Date(`${form.levelStartedAt}T00:00:00`).getMonth() + form.levelDurationMonths)).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
   const changeProgram = (programId: string) => {
     const program = programs.find((item) => item.id === programId);
-    const config = levelOptions(program?.name);
-    setForm((current) => ({ ...current, programId, sessionsPerWeek: program?.sessionsPerWeek ?? current.sessionsPerWeek, currentLevel: config.levels[0] ?? '', levelDurationMonths: config.duration || undefined }));
+    const config = programLevelOptions(program);
+    const packageMonths = program?.defaultPackageMonths ?? 2;
+    setForm((current) => ({
+      ...current,
+      programId,
+      sessionsPerWeek: program?.sessionsPerWeek ?? current.sessionsPerWeek,
+      billingAmount: programBillingAmount(program),
+      billingCycleMonths: program?.billingCycleMonths ?? 2,
+      packageEndsAt: packageEndFrom(current.packageStartedAt || current.joinDate, packageMonths),
+      registrationFee: program?.registrationFee ?? 0,
+      bookFee: program?.bookFee ?? 0,
+      currentLevel: config.levels[0] ?? '',
+      levelDurationMonths: config.duration || undefined,
+    }));
   };
   return (
     <div>
@@ -230,15 +269,15 @@ function StudentForm({ student, registration, teachers, programs, onSave, onCanc
         <div className="card entity-form-card">
           <div className="section-title">Program & Level</div>
           <div className="form-stack">
-            <label>Program utama *<select value={form.programId} onChange={(e) => changeProgram(e.target.value)}>{programs.map((program) => <option key={program.id} value={program.id}>{program.name} - {formatCurrency(program.price)}/bln</option>)}</select></label>
+            <label>Program utama *<select value={form.programId} onChange={(e) => changeProgram(e.target.value)}>{programs.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}</select></label>
             {level.levels.length > 0 && <><div className="form-two-columns"><label>Level saat ini<select value={form.currentLevel} onChange={(e) => setForm((f) => ({ ...f, currentLevel: e.target.value }))}>{level.levels.map((item) => <option key={item}>{item}</option>)}</select></label><label>Mulai level<input type="date" value={form.levelStartedAt} onChange={(e) => setForm((f) => ({ ...f, levelStartedAt: e.target.value }))} /></label></div><div className="level-due-note"><span>Durasi level</span><strong>{form.levelDurationMonths} bulan</strong><span>Evaluasi berikutnya</span><strong>{levelDue}</strong></div></>}
             <label>Guru *<select value={form.teacherId} onChange={(e) => setForm((f) => ({ ...f, teacherId: e.target.value }))}><option value="">Belum ditentukan</option>{teachers.filter((teacher) => teacher.status === 'active').map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.fullName}</option>)}</select></label>
-            <label>Tanggal Masuk *<input type="date" value={form.joinDate} onChange={(e) => setForm((f) => ({ ...f, joinDate: e.target.value, levelStartedAt: f.levelStartedAt || e.target.value, packageStartedAt: f.packageStartedAt || e.target.value }))} /></label>
-            <div className="form-two-columns"><label>Mulai paket<input type="date" value={form.packageStartedAt} onChange={(e) => setForm((f) => ({ ...f, packageStartedAt: e.target.value }))} /></label><label>Berakhir paket<input type="date" min={form.packageStartedAt || undefined} value={form.packageEndsAt} onChange={(e) => setForm((f) => ({ ...f, packageEndsAt: e.target.value }))} /></label></div>
-            <div className="status-managed-note">Perpanjangan dilakukan dengan memperbarui tanggal akhir paket. Jika masa paket lewat, sistem menonaktifkan murid secara otomatis. Admin tetap dapat menonaktifkan manual dari Status Murid.</div>
+            <label>Tanggal Masuk *<input type="date" value={form.joinDate} onChange={(e) => setForm((f) => ({ ...f, joinDate: e.target.value, levelStartedAt: f.levelStartedAt || e.target.value, billingStartedAt: f.billingStartedAt || e.target.value, packageStartedAt: f.packageStartedAt || e.target.value, packageEndsAt: f.packageEndsAt || packageEndFrom(e.target.value, f.billingCycleMonths) }))} /></label>
+            <div className="form-two-columns"><label>Mulai paket<input type="date" value={form.packageStartedAt} onChange={(e) => setForm((f) => ({ ...f, packageStartedAt: e.target.value, billingStartedAt: e.target.value, packageEndsAt: packageEndFrom(e.target.value, f.billingCycleMonths) }))} /></label><label>Berakhir paket<input type="date" min={form.packageStartedAt || undefined} value={form.packageEndsAt} onChange={(e) => setForm((f) => ({ ...f, packageEndsAt: e.target.value }))} /></label></div>
+            <div className="status-managed-note">Paket awal mengikuti pengaturan program: {selectedProgram?.defaultPackageMonths ?? 2} bulan. Tanggal akhir tetap dapat disesuaikan sesuai kesepakatan.</div>
           </div>
         </div>
-        <div className="card entity-form-card"><div className="section-title">Biaya Pendaftaran Awal</div><div className="form-stack"><div className="form-two-columns"><label>Biaya daftar<input type="number" min="0" value={form.registrationFee} onChange={(e) => setForm((f) => ({ ...f, registrationFee: Number(e.target.value) }))} /></label><label>Biaya buku<input type="number" min="0" value={form.bookFee} onChange={(e) => setForm((f) => ({ ...f, bookFee: Number(e.target.value) }))} /></label></div><div className="form-two-columns"><label>Biaya lainnya<input type="number" min="0" value={form.otherFee} onChange={(e) => setForm((f) => ({ ...f, otherFee: Number(e.target.value) }))} /></label><label>Potongan promo<input type="number" min="0" value={form.discount} onChange={(e) => setForm((f) => ({ ...f, discount: Number(e.target.value) }))} /></label></div><label>Catatan biaya<input value={form.feeNotes} onChange={(e) => setForm((f) => ({ ...f, feeNotes: e.target.value }))} placeholder="Contoh: promo gratis pendaftaran" /></label><div className="fee-total-preview"><span>Total biaya awal di luar les</span><strong>{formatCurrency(Math.max(0, form.registrationFee + form.bookFee + form.otherFee - form.discount))}</strong></div></div></div>
+        <div className="card entity-form-card"><div className="section-title">Biaya Murid</div><div className="form-stack"><div className="form-two-columns"><label>Nominal paket *<input type="number" min="0" value={form.billingAmount} onChange={(e) => setForm((f) => ({ ...f, billingAmount: Number(e.target.value) }))} /></label><label>Ditagih setiap *<select value={form.billingCycleMonths} onChange={(e) => setForm((f) => ({ ...f, billingCycleMonths: Number(e.target.value), packageEndsAt: packageEndFrom(f.packageStartedAt || f.joinDate, Number(e.target.value)) }))}><option value={1}>1 bulan</option><option value={2}>2 bulan</option><option value={3}>3 bulan</option><option value={4}>4 bulan</option><option value={6}>6 bulan</option></select></label></div><div className="status-managed-note">Nominal diisi manual sesuai kesepakatan paket. Diskon saudara, promo, dan paket 2+1 bulan dapat dicatat tanpa mengubah pricelist program.</div><div className="form-two-columns"><label>Biaya daftar<input type="number" min="0" value={form.registrationFee} onChange={(e) => setForm((f) => ({ ...f, registrationFee: Number(e.target.value) }))} /></label><label>Biaya buku<input type="number" min="0" value={form.bookFee} onChange={(e) => setForm((f) => ({ ...f, bookFee: Number(e.target.value) }))} /></label></div><div className="form-two-columns"><label>Biaya lainnya<input type="number" min="0" value={form.otherFee} onChange={(e) => setForm((f) => ({ ...f, otherFee: Number(e.target.value) }))} /></label><label>Potongan promo<input type="number" min="0" value={form.discount} onChange={(e) => setForm((f) => ({ ...f, discount: Number(e.target.value) }))} /></label></div><label>Catatan biaya<input value={form.feeNotes} onChange={(e) => setForm((f) => ({ ...f, feeNotes: e.target.value }))} placeholder="Contoh: diskon saudara atau paket 2+1 bulan" /></label><div className="fee-total-preview"><span>Tagihan setiap {form.billingCycleMonths} bulan</span><strong>{formatCurrency(form.billingAmount)}</strong><span>Total biaya awal di luar les</span><strong>{formatCurrency(Math.max(0, form.registrationFee + form.bookFee + form.otherFee - form.discount))}</strong></div></div></div>
         <div className="card student-schedule-form-card">
           <div className="student-schedule-form-head">
             <div>
@@ -349,7 +388,8 @@ function StudentDetail({ student, teachers, programs, onEdit, onBack, canManage 
           <div className="entity-highlight">
             <span className="entity-highlight-label">Program Aktif</span>
             <strong>{program?.name ?? '-'}</strong>
-            <b>{formatCurrency(program?.price ?? 0)} / bulan</b>
+            <b>{formatCurrency(student.billingAmount ?? (program?.price ?? 0) * (student.billingCycleMonths ?? 2))} / {student.billingCycleMonths ?? 2} bulan</b>
+            <p>Tagihan berjalan sejak {formatDate(student.billingStartedAt ?? student.joinDate)}</p>
             <p>{student.sessionsPerWeek} sesi per minggu · Guru {teacher?.fullName ?? '-'}</p>
             {student.currentLevel && <p>Level {student.currentLevel} · evaluasi setiap {student.levelDurationMonths ?? '-'} bulan</p>}
             {student.packageSelections && student.packageSelections.length > 1 && <p>{student.packageSelections.length} program dalam paket pendaftaran</p>}
@@ -372,8 +412,12 @@ function StudentDetail({ student, teachers, programs, onEdit, onBack, canManage 
 function StudentActivation({ students, teachers, programs, setStudents, canManage }: { students: Student[]; teachers: Teacher[]; programs: Program[]; setStudents: (s: Student[]) => void; canManage: boolean }) {
   const { notify } = useToast();
   const [modal, setModal] = useState<{ student: Student; action: 'off' | 'activate' } | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Student | null>(null);
   const [reason, setReason] = useState('');
   const [offDate, setOffDate] = useState(new Date().toISOString().slice(0, 10));
+  const [activationEnd, setActivationEnd] = useState('');
+  const [activationFee, setActivationFee] = useState(0);
+  const [activationCycle, setActivationCycle] = useState(2);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'off'>('all');
   const [programFilter, setProgramFilter] = useState('all');
@@ -381,7 +425,8 @@ function StudentActivation({ students, teachers, programs, setStudents, canManag
   const [statusPageSize, setStatusPageSize] = useState(10);
   const activeCount = students.filter((student) => student.status === 'active').length;
   const offCount = students.length - activeCount;
-  const recentChanges = students.reduce((count, student) => count + student.statusHistory.filter((history) => history.date.startsWith('2026-07')).length, 0);
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const recentChanges = students.reduce((count, student) => count + student.statusHistory.filter((history) => history.date.startsWith(currentMonth)).length, 0);
   const filtered = students.filter((student) => {
     if (statusFilter !== 'all' && student.status !== statusFilter) return false;
     if (programFilter !== 'all' && student.programId !== programFilter) return false;
@@ -391,14 +436,33 @@ function StudentActivation({ students, teachers, programs, setStudents, canManag
   const safeStatusPage = Math.min(statusPage, statusTotalPages);
   const statusPageStart = (safeStatusPage - 1) * statusPageSize;
   const visibleStatusStudents = filtered.slice(statusPageStart, statusPageStart + statusPageSize);
-  const openAction = (student: Student, action: 'off' | 'activate') => { setReason(''); setOffDate(new Date().toISOString().slice(0, 10)); setModal({ student, action }); };
+  const openAction = (student: Student, action: 'off' | 'activate') => {
+    const date = new Date().toISOString().slice(0, 10);
+    setReason('');
+    setOffDate(date);
+    const billingCycle = student.billingCycleMonths ?? 2;
+    setActivationCycle(billingCycle);
+    setActivationEnd(packageEndFrom(date, billingCycle));
+    setActivationFee(student.billingAmount ?? (programs.find((program) => program.id === student.programId)?.price ?? 0) * billingCycle);
+    setModal({ student, action });
+  };
   const doAction = () => {
     if (!modal) return;
     if (modal.action === 'off' && !reason.trim()) {
       notify({ tone: 'error', title: 'Alasan belum diisi', message: 'Tuliskan alasan agar riwayat status murid tetap lengkap.' });
       return;
     }
-    setStudents(students.map((student) => student.id !== modal.student.id ? student : { ...student, status: modal.action === 'off' ? 'off' : 'active', leaveDate: modal.action === 'off' ? offDate : undefined, statusHistory: [...student.statusHistory, { date: offDate, action: modal.action === 'off' ? 'deactivated' : 'activated', reason: reason.trim() || undefined, by: 'Admin' }] }));
+    setStudents(students.map((student) => student.id !== modal.student.id ? student : {
+      ...student,
+      status: modal.action === 'off' ? 'off' : 'active',
+      leaveDate: modal.action === 'off' ? offDate : undefined,
+      billingStartedAt: modal.action === 'activate' ? offDate : student.billingStartedAt,
+      packageStartedAt: modal.action === 'activate' ? offDate : student.packageStartedAt,
+      packageEndsAt: modal.action === 'activate' ? activationEnd : student.packageEndsAt,
+      billingAmount: modal.action === 'activate' ? activationFee : student.billingAmount,
+      billingCycleMonths: modal.action === 'activate' ? activationCycle : student.billingCycleMonths,
+      statusHistory: [...student.statusHistory, { date: offDate, action: modal.action === 'off' ? 'deactivated' : 'activated', reason: reason.trim() || undefined, by: 'Admin EdGLO' }],
+    }));
     notify({ tone: modal.action === 'off' ? 'warning' : 'success', title: modal.action === 'off' ? 'Murid dinonaktifkan' : 'Murid diaktifkan kembali', message: `${modal.student.fullName} berhasil diperbarui.` });
     setModal(null);
   };
@@ -420,20 +484,37 @@ function StudentActivation({ students, teachers, programs, setStudents, canManag
       </div>
       <div className="status-table-shell">
         <table className="status-student-table">
-          <thead><tr><th>Murid</th><th>Program & Guru</th><th>Tanggal Masuk</th><th>Tanggal Off</th><th>Status Terakhir</th><th>Status</th><th>Aksi</th></tr></thead>
+          <thead><tr><th>Murid</th><th>Program & Guru</th><th>Tanggal Masuk</th><th>Mulai Tagihan</th><th>Status Terakhir</th><th>Status</th><th>Aksi</th></tr></thead>
           <tbody>
             {filtered.length === 0 && <tr><td colSpan={7} className="status-empty">Tidak ada murid yang sesuai dengan filter.</td></tr>}
             {visibleStatusStudents.map((student, rowIndex) => {
               const program = programs.find((item) => item.id === student.programId);
               const teacher = teachers.find((item) => item.id === student.teacherId);
               const lastHistory = student.statusHistory[student.statusHistory.length - 1];
-              return <tr key={student.id}><td><div className="status-student-name"><span className="table-row-number">{statusPageStart + rowIndex + 1}</span><span>{student.fullName.charAt(0)}</span><div><strong>{student.fullName}</strong><small>{student.parentName}</small></div></div></td><td><strong>{program?.name ?? '-'}</strong><small>{teacher?.fullName ?? '-'}</small></td><td><strong>{formatDate(student.joinDate)}</strong><small>{student.packageEndsAt ? `Paket s.d. ${formatDate(student.packageEndsAt)}` : 'Masa paket belum diatur'}</small></td><td><strong>{student.leaveDate ? formatDate(student.leaveDate) : '-'}</strong><small>{student.leaveDate ? 'Tanggal berhenti' : 'Masih bergabung'}</small></td><td><div className={`history-line history-${lastHistory.action}`}><i /><span><strong>{lastHistory.action === 'activated' ? 'Diaktifkan' : 'Dinonaktifkan'} {formatDate(lastHistory.date)}</strong><small>{lastHistory.reason ?? `oleh ${lastHistory.by}`}</small></span></div></td><td><span className={`status-pill status-pill-${student.status}`}><i />{student.status === 'active' ? 'Aktif' : 'Off'}</span></td><td>{canManage ? (student.status === 'active' ? <button type="button" className="status-action status-action-off" onClick={() => openAction(student, 'off')}>Nonaktifkan</button> : <button type="button" className="status-action status-action-on" onClick={() => openAction(student, 'activate')}>Aktifkan</button>) : <span className="read-only-label">Lihat saja</span>}</td></tr>;
+              return <tr key={student.id}><td><div className="status-student-name"><span className="table-row-number">{statusPageStart + rowIndex + 1}</span><span>{student.fullName.charAt(0)}</span><div><strong>{student.fullName}</strong><small>{student.parentName}</small></div></div></td><td><strong>{program?.name ?? '-'}</strong><small>{teacher?.fullName ?? '-'}</small></td><td><strong>{formatDate(student.joinDate)}</strong><small>{student.packageEndsAt ? `Paket s.d. ${formatDate(student.packageEndsAt)}` : 'Masa paket belum diatur'}</small></td><td><strong>{formatDate(student.billingStartedAt ?? student.joinDate)}</strong><small>{formatCurrency(student.billingAmount ?? (program?.price ?? 0) * (student.billingCycleMonths ?? 2))} / {student.billingCycleMonths ?? 2} bulan</small></td><td><div className={`history-line history-${lastHistory.action}`}><i /><span><strong>{lastHistory.action === 'activated' ? 'Diaktifkan' : 'Dinonaktifkan'} {formatDate(lastHistory.date)}</strong><small>{lastHistory.reason ?? `oleh ${lastHistory.by}`}</small></span></div></td><td><span className={`status-pill status-pill-${student.status}`}><i />{student.status === 'active' ? 'Aktif' : 'Off'}</span></td><td><div className="status-row-actions"><button type="button" className="btn-secondary btn-sm" onClick={() => setHistoryTarget(student)}>Riwayat</button>{canManage ? (student.status === 'active' ? <button type="button" className="status-action status-action-off" onClick={() => openAction(student, 'off')}>Nonaktifkan</button> : <button type="button" className="status-action status-action-on" onClick={() => openAction(student, 'activate')}>Aktifkan</button>) : <span className="read-only-label">Lihat saja</span>}</div></td></tr>;
             })}
           </tbody>
         </table>
       </div>
       <DataPagination totalItems={filtered.length} page={safeStatusPage} pageSize={statusPageSize} onPageChange={setStatusPage} onPageSizeChange={(size) => { setStatusPageSize(size); setStatusPage(1); }} label="murid" />
-      {modal && <div className="modal-overlay"><div className={`modal-box status-action-modal modal-${modal.action}`}><div className="status-modal-head"><span>{modal.action === 'off' ? '−' : '✓'}</span><div><small>{modal.action === 'off' ? 'NONAKTIFKAN MURID' : 'AKTIFKAN KEMBALI'}</small><h2>{modal.student.fullName}</h2><p>{modal.action === 'off' ? 'Jadwal aktif akan dilepas, tetapi seluruh riwayat murid tetap tersimpan.' : 'Murid akan kembali masuk ke daftar aktif dan dapat dijadwalkan kembali.'}</p></div></div>{modal.action === 'off' ? <div className="status-modal-form"><div><label className="input-label">Tanggal Off *</label><input className="input-field" type="date" value={offDate} onChange={(event) => setOffDate(event.target.value)} /></div><div><label className="input-label">Alasan Berhenti *</label><textarea className="input-field" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Contoh: pindah domisili atau selesai program" /></div></div> : <div className="reactivate-preview"><span>✓</span><div><strong>Data siap diaktifkan</strong><small>Riwayat sebelumnya tidak akan dihapus.</small></div></div>}<div className="modal-actions"><button type="button" className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button type="button" className={modal.action === 'off' ? 'btn-danger' : 'btn-primary'} onClick={doAction}>{modal.action === 'off' ? 'Konfirmasi Nonaktif' : 'Aktifkan Murid'}</button></div></div></div>}
+      {historyTarget && <div className="modal-overlay"><div className="modal-box status-history-modal"><div className="modal-title-row"><div><span className="eyebrow">RIWAYAT ON / OFF</span><h2>{historyTarget.fullName}</h2><p>Semua periode tetap tersimpan saat murid diaktifkan kembali.</p></div><button type="button" className="modal-x" onClick={() => setHistoryTarget(null)} aria-label="Tutup">x</button></div><div className="status-cycle-list">{historyTarget.statusHistory.slice().reverse().map((history, index) => <div key={`${history.date}-${index}`} className={history.action}><i /><div><strong>{history.action === 'activated' ? 'On / Aktif' : 'Off / Nonaktif'}</strong><span>{formatDate(history.date)}</span><small>{history.reason ?? `Dicatat oleh ${history.by}`}</small></div></div>)}</div><div className="modal-actions"><button type="button" className="btn-primary" onClick={() => setHistoryTarget(null)}>Selesai</button></div></div></div>}
+      {modal && (
+        <div className="modal-overlay">
+          <div className={`modal-box status-action-modal modal-${modal.action}`}>
+            <div className="status-modal-head"><span>{modal.action === 'off' ? 'O' : 'A'}</span><div><small>{modal.action === 'off' ? 'NONAKTIFKAN MURID' : 'AKTIFKAN KEMBALI'}</small><h2>{modal.student.fullName}</h2><p>{modal.action === 'off' ? 'Jadwal aktif akan dilepas, tetapi seluruh riwayat murid tetap tersimpan.' : 'Tanggal aktif baru menjadi awal tagihan periode berikutnya.'}</p></div></div>
+            <div className="status-modal-form">
+              <div><label className="input-label">{modal.action === 'off' ? 'Tanggal Off *' : 'Tanggal Aktif Baru *'}</label><input className="input-field" type="date" value={offDate} onChange={(event) => { setOffDate(event.target.value); if (modal.action === 'activate') setActivationEnd(packageEndFrom(event.target.value, activationCycle)); }} /></div>
+              {modal.action === 'activate' && <>
+                <div><label className="input-label">Berakhir Paket</label><input className="input-field" type="date" min={offDate} value={activationEnd} onChange={(event) => setActivationEnd(event.target.value)} /></div>
+                <div><label className="input-label">Nominal Paket *</label><input className="input-field" type="number" min="0" value={activationFee} onChange={(event) => setActivationFee(Number(event.target.value))} /></div>
+                <div><label className="input-label">Siklus Tagihan *</label><select className="input-field" value={activationCycle} onChange={(event) => { const cycle = Number(event.target.value); setActivationCycle(cycle); setActivationEnd(packageEndFrom(offDate, cycle)); }}><option value={1}>1 bulan</option><option value={2}>2 bulan</option><option value={3}>3 bulan</option><option value={4}>4 bulan</option><option value={6}>6 bulan</option></select></div>
+              </>}
+              <div><label className="input-label">{modal.action === 'off' ? 'Alasan Berhenti *' : 'Catatan Aktivasi'}</label><textarea className="input-field" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={modal.action === 'off' ? 'Contoh: pindah domisili atau selesai program' : 'Contoh: melanjutkan paket dua bulan'} /></div>
+            </div>
+            <div className="modal-actions"><button type="button" className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button type="button" className={modal.action === 'off' ? 'btn-danger' : 'btn-primary'} onClick={doAction}>{modal.action === 'off' ? 'Konfirmasi Nonaktif' : 'Aktifkan & Mulai Tagihan'}</button></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

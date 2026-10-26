@@ -29,6 +29,7 @@ type Props = {
   onSessionsChange?: (sessions: ClassSession[]) => void;
   teachers?: Teacher[];
   programs?: Program[];
+  onDownload?: () => Promise<void>;
 };
 
 function ScheduleIcon({ children, size = 18 }: { children: ReactNode; size?: number }) {
@@ -95,6 +96,20 @@ export default function Schedule(props: Props = {}) {
   const [form, setForm] = useState<ScheduleForm>(() => createEmptyForm('Senin', teachers, programs));
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ClassSession | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadSchedule = async () => {
+    if (!props.onDownload || downloading) return;
+    setDownloading(true);
+    try {
+      await props.onDownload();
+      notify({ tone: 'success', title: 'File jadwal siap', message: 'PDF jadwal guru berhasil diunduh dan siap dikirim.' });
+    } catch (error) {
+      notify({ tone: 'error', title: 'Jadwal gagal diunduh', message: error instanceof Error ? error.message : 'Terjadi kesalahan saat membuat file.' });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const visibleDays = dayFilter === 'all' ? ALL_DAYS : [dayFilter];
   const filteredSessions = sessions.filter((session) => {
@@ -258,10 +273,10 @@ export default function Schedule(props: Props = {}) {
           <h2>Atur jadwal mengajar mingguan</h2>
           <p>Kelola jam kelas, guru pengajar, program, ruang, dan murid dalam setiap sesi.</p>
         </div>
-        {canManage && <button type="button" className="btn-primary schedule-add-main" onClick={() => openAdd()}>
-          <ScheduleIcon size={17}><path d="M12 5v14M5 12h14" /></ScheduleIcon>
-          Tambah Kelas
-        </button>}
+        <div className="schedule-heading-actions">
+          {props.onDownload && <button type="button" className="btn-secondary" onClick={() => void downloadSchedule()} disabled={downloading}><ScheduleIcon size={17}><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></ScheduleIcon>{downloading ? 'Menyiapkan...' : 'Unduh Jadwal PDF'}</button>}
+          {canManage && <button type="button" className="btn-primary schedule-add-main" onClick={() => openAdd()}><ScheduleIcon size={17}><path d="M12 5v14M5 12h14" /></ScheduleIcon>Tambah Kelas</button>}
+        </div>
       </div>
 
       <div className="schedule-summary-grid">

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasStringPrimaryKey;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Teacher extends Model
@@ -12,7 +13,7 @@ class Teacher extends Model
     use HasFactory, HasStringPrimaryKey;
 
     protected $fillable = [
-        'id', 'full_name', 'address', 'birth_place', 'birth_date', 'religion', 'email',
+        'id', 'user_id', 'full_name', 'address', 'birth_place', 'birth_date', 'religion', 'email',
         'phone', 'emergency_contact_name', 'emergency_contact_phone', 'last_education', 'join_date',
         'leave_date', 'photo', 'employment_type', 'notes', 'status',
     ];
@@ -25,6 +26,16 @@ class Teacher extends Model
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function progressLogs(): HasMany
+    {
+        return $this->hasMany(StudentProgressLog::class);
     }
 
     public function classSessions(): HasMany

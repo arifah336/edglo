@@ -33,6 +33,16 @@ class AuthController extends Controller
         );
     }
 
+    public function teacherLogin(LoginRequest $request): JsonResponse
+    {
+        return $this->authenticate(
+            $request,
+            ['teacher'],
+            'Akun ini tidak memiliki akses ke Portal Guru.',
+            'edglo-teacher',
+        );
+    }
+
     /**
      * @param  array<int, string>  $allowedRoles
      */
